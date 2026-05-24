@@ -60,7 +60,7 @@ service cloud.firestore {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid 
                     && request.resource.data.status == 'pending'
-                    && request.resource.data.amount >= 3000;
+                    && request.resource.data.amount >= (exists(/databases/$(database)/documents/system/page_status) && 'minDepositNGN' in get(/databases/$(database)/documents/system/page_status).data ? get(/databases/$(database)/documents/system/page_status).data.minDepositNGN : 300);
       allow update, delete: if isAdmin();
     }
 
