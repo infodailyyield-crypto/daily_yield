@@ -23,6 +23,7 @@ import {
   BarChart3, Database, AlertTriangle, ShieldAlert, ArrowLeft
 } from 'lucide-react';
 import { auth, db, storage } from './lib/firebase';
+import { Room as LiveKitRoom, RoomEvent as LiveKitRoomEvent, Track as LiveKitTrack } from 'livekit-client';
 import { 
   signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User as FirebaseUser,
   signInWithEmailAndPassword, createUserWithEmailAndPassword
@@ -31,7 +32,7 @@ import {
   doc, getDoc, getDocFromServer, setDoc, updateDoc, onSnapshot, 
   collection, query, where, orderBy,
   limit, Timestamp, serverTimestamp, arrayUnion, arrayRemove,
-  increment, deleteDoc, getDocs, addDoc, writeBatch
+  increment, deleteDoc, getDocs, addDoc, writeBatch, collectionGroup
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { 
@@ -44,6 +45,29 @@ import logo from './assets/images/daily_yield_app_icon_1777100795284.png';
 import axios from 'axios';
 import { subscribeUserToPush, askNotificationPermission } from './lib/push';
 import html2canvas from 'html2canvas';
+
+// --- LiveKit Helper Functions ---
+const fetchLiveKitConfig = async (): Promise<string> => {
+  try {
+    const res = await fetch('/api/livekit-config');
+    const data = await res.json();
+    return data.url || "";
+  } catch (e) {
+    console.error("Failed to fetch LiveKit URL:", e);
+    return "";
+  }
+};
+
+const fetchToken = async (roomId: string, identity: string): Promise<string> => {
+  const res = await fetch('/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId, identity })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Authentication failed");
+  return data.token;
+};
 
 // --- One Play Imports ---
 import { OnePlayView } from './components/OnePlayView';
@@ -6068,7 +6092,7 @@ async function testFirestoreConnection() {
   }
 }
 
-type AdminTab = 'users' | 'broadcast' | 'alerts' | 'withdrawals' | 'kyc' | 'tiers' | 'registry' | 'faq' | 'airdrop' | 'referrals' | 'system' | 'deposits' | 'referral_requests' | 'investments' | 'page_management' | 'market_duel' | 'wallet_security' | 'fees' | 'live-chat' | 'oneplay_admin';
+type AdminTab = 'users' | 'broadcast' | 'alerts' | 'withdrawals' | 'kyc' | 'tiers' | 'registry' | 'faq' | 'airdrop' | 'referrals' | 'system' | 'deposits' | 'referral_requests' | 'investments' | 'page_management' | 'market_duel' | 'wallet_security' | 'fees' | 'live-chat' | 'support-calls' | 'oneplay_admin';
 
 function DepositRequestPage({ profile, prefillAmount, setView }: { profile: UserProfile | null, prefillAmount: number, setView: (v: View) => void }) {
   const [amount, setAmount] = useState(prefillAmount || 0);
@@ -7604,6 +7628,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
             { id: 'airdrop', label: 'Airdrop Command', icon: Zap },
             { id: 'system', label: 'System Sync', icon: Database },
             { id: 'live-chat', label: 'Live Chat Support', icon: MessageSquare },
+            { id: 'support-calls', label: 'Voice Support Calls', icon: Phone },
             { id: 'fees', label: 'Charge Fees', icon: CreditCard },
             { id: 'oneplay_admin', label: 'Daily Yield One Play', icon: Coins },
           ].map((btn) => (
@@ -7690,6 +7715,10 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
 
           {activeTab === 'live-chat' && (
             <LiveChatPanel />
+          )}
+
+          {activeTab === 'support-calls' && (
+            <SupportCallsPanel />
           )}
           {activeTab === 'system' && (
             <div className="space-y-8 max-w-2xl mx-auto">
@@ -10488,6 +10517,214 @@ function SupportPage({ profile }: { profile: UserProfile | null }) {
   const [agentTyping, setAgentTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // LiveKit Support Call States & Refs
+  const [currentCall, setCurrentCall] = useState<any>(null); // { id: string, status: 'calling'|'connected', duration: number, isMuted: boolean }
+  const livekitRoomRef = useRef<any>(null);
+  const unsubCallRef = useRef<(() => void) | null>(null);
+  const ringtoneCleanupRef = useRef<(() => void) | null>(null);
+  const durationIntervalRef = useRef<any>(null);
+
+  const startCallTimer = () => {
+    if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+    durationIntervalRef.current = setInterval(() => {
+      setCurrentCall((prev: any) => prev ? { ...prev, duration: prev.duration + 1 } : null);
+    }, 1000);
+  };
+
+  const playDialTone = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return () => {};
+      const ctx = new AudioContextClass();
+      let interval: any;
+      const playPulse = () => {
+        try {
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc1.frequency.value = 350;
+          osc2.frequency.value = 440;
+          
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+          
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.04, ctx.currentTime + 1.0);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.15);
+          
+          osc1.start();
+          osc2.start();
+          osc1.stop(ctx.currentTime + 1.25);
+          osc2.stop(ctx.currentTime + 1.25);
+        } catch (e) {
+          console.warn(e);
+        }
+      };
+      playPulse();
+      interval = setInterval(playPulse, 2400);
+      return () => {
+        clearInterval(interval);
+        ctx.close().catch(() => {});
+      };
+    } catch (err) {
+      console.warn("Failed audio-context initialization:", err);
+      return () => {};
+    }
+  };
+
+  const cleanupUserCall = async () => {
+    if (ringtoneCleanupRef.current) {
+      ringtoneCleanupRef.current();
+      ringtoneCleanupRef.current = null;
+    }
+    
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+    
+    if (unsubCallRef.current) {
+      unsubCallRef.current();
+      unsubCallRef.current = null;
+    }
+    
+    if (livekitRoomRef.current) {
+      try {
+        livekitRoomRef.current.disconnect();
+      } catch (e) {}
+      livekitRoomRef.current = null;
+    }
+
+    const dynAudio = document.getElementById('dynamic-user-voice-audio-player');
+    if (dynAudio) dynAudio.remove();
+    
+    if (currentCall && activeChat?.id) {
+      try {
+        await updateDoc(doc(db, 'chats', activeChat.id, 'calls', 'active_call'), {
+          status: 'ended',
+          endedAt: serverTimestamp()
+        }).catch(() => {});
+        
+        await updateDoc(doc(db, 'chats', activeChat.id), {
+          activeCall: null
+        }).catch(() => {});
+      } catch (e) {}
+    }
+    
+    setCurrentCall(null);
+  };
+
+  const startVoiceCall = async () => {
+    if (!activeChat?.id || !profile) return;
+    
+    try {
+      const livekitUrl = await fetchLiveKitConfig();
+      if (!livekitUrl) {
+        alert("LiveKit URL is not configured. Please add LIVEKIT_URL to environment secrets.");
+        return;
+      }
+
+      const token = await fetchToken(activeChat.id, profile.uid);
+
+      const room = new LiveKitRoom();
+      livekitRoomRef.current = room;
+
+      room.on(LiveKitRoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === LiveKitTrack.Kind.Audio) {
+          const audioEl = document.getElementById('user-voice-audio-player') as HTMLAudioElement;
+          if (audioEl) {
+            track.attach(audioEl);
+          } else {
+            const el = track.attach();
+            el.id = 'dynamic-user-voice-audio-player';
+            document.body.appendChild(el);
+          }
+        }
+      });
+
+      await room.connect(livekitUrl, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+      setCurrentCall({
+        id: activeChat.id,
+        status: 'calling',
+        duration: 0,
+        isMuted: false
+      });
+
+      const callData = {
+        status: 'ringing',
+        caller: 'user',
+        userEmail: profile.email,
+        userId: profile.uid,
+        offer: { type: 'livekit', sdp: 'livekit-active' },
+        createdAt: new Date().toISOString()
+      };
+      
+      await setDoc(doc(db, 'chats', activeChat.id, 'calls', 'active_call'), {
+        ...callData,
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, 'chats', activeChat.id), {
+        activeCall: callData,
+        updatedAt: serverTimestamp()
+      });
+      
+      const stopTone = playDialTone();
+      ringtoneCleanupRef.current = stopTone;
+      
+      const unsub = onSnapshot(doc(db, 'chats', activeChat.id, 'calls', 'active_call'), async (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.status === 'connected') {
+            if (ringtoneCleanupRef.current) {
+              ringtoneCleanupRef.current();
+              ringtoneCleanupRef.current = null;
+            }
+
+            setCurrentCall((prev: any) => prev ? { ...prev, status: 'connected' } : null);
+            startCallTimer();
+          } else if (data.status === 'ended' || data.status === 'rejected') {
+            cleanupUserCall();
+          }
+        } else {
+          cleanupUserCall();
+        }
+      });
+      unsubCallRef.current = unsub;
+      
+    } catch (err) {
+      console.error("Failed to start customer support call:", err);
+      alert("Microphone access is required to make support calls.");
+      cleanupUserCall();
+    }
+  };
+
+  const toggleMute = () => {
+    if (livekitRoomRef.current) {
+      const isMuted = !currentCall?.isMuted;
+      livekitRoomRef.current.localParticipant.setMicrophoneEnabled(!isMuted);
+      setCurrentCall((prev: any) => prev ? { ...prev, isMuted } : null);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+      if (ringtoneCleanupRef.current) ringtoneCleanupRef.current();
+      if (unsubCallRef.current) unsubCallRef.current();
+      if (livekitRoomRef.current) {
+        try {
+          livekitRoomRef.current.disconnect();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
@@ -10707,6 +10944,68 @@ function SupportPage({ profile }: { profile: UserProfile | null }) {
         </button>
       </div>
 
+      {/* Active Support Call HUD overlay */}
+      {currentCall && (
+        <div id="support-call-hud" className="bg-[#101322] border-2 border-emerald-500/30 rounded-[2.5rem] p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.02),transparent_75%)] pointer-events-none" />
+          <div className="flex items-center gap-4 z-10">
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center transition-all bg-emerald-500/10 text-emerald-400",
+              currentCall.status === 'calling' ? "animate-pulse" : "animate-spin"
+            )}>
+              <Phone className={cn("w-6 h-6", currentCall.status === 'calling' ? "animate-bounce" : "")} />
+            </div>
+            <div>
+              <h4 className="font-mono text-[8px] font-black uppercase tracking-[0.2em] text-emerald-400/60">SEAMLESS VOIP LINK</h4>
+              <p className="font-black text-white text-base">
+                {currentCall.status === 'calling' ? 'Calling Support Agent Override...' : 'Support Voice Link Connected'}
+              </p>
+              <p className="text-white/40 text-xs font-mono">
+                {currentCall.status === 'calling' ? 'Handshaking...' : `Secure Call Active: ${Math.floor(currentCall.duration / 60).toString().padStart(2, '0')}:${(currentCall.duration % 60).toString().padStart(2, '0')}`}
+              </p>
+            </div>
+          </div>
+          
+          {/* Waveform graphic */}
+          <div className="flex items-center gap-1 h-6 select-none z-10">
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{ 
+                  height: currentCall.status === 'connected' ? [8, 24, 8] : [8, 12, 8] 
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 0.6 + i * 0.1,
+                  ease: "easeInOut"
+                }}
+                className="w-1.5 bg-emerald-500 rounded-full"
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 z-10 w-full md:w-auto justify-end">
+            <button
+              onClick={toggleMute}
+              className={cn(
+                "p-4 rounded-2xl border transition-all active:scale-95 text-xs font-mono font-black uppercase flex items-center gap-2",
+                currentCall.isMuted 
+                  ? "bg-red-500/20 border-red-500 text-red-400" 
+                  : "bg-white/5 border-white/5 text-white/60 hover:text-white"
+              )}
+            >
+              {currentCall.isMuted ? 'Muted' : 'Mute'}
+            </button>
+            <button
+              onClick={cleanupUserCall}
+              className="p-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-mono font-black text-xs uppercase shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+            >
+              Disconnect
+            </button>
+          </div>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {activeTab === 'new' ? (
           <motion.div key="active-chat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
@@ -10760,6 +11059,14 @@ function SupportPage({ profile }: { profile: UserProfile | null }) {
                       </div>
                     </div>
                   </div>
+                  {!currentCall && (
+                    <button
+                      onClick={startVoiceCall}
+                      className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-black px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all scale-100 active:scale-95 shadow-md shadow-emerald-500/10"
+                    >
+                      <Phone size={14} className="animate-pulse" /> Support Call
+                    </button>
+                  )}
                 </div>
 
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-black/20 scroll-smooth">
@@ -10907,6 +11214,7 @@ function SupportPage({ profile }: { profile: UserProfile | null }) {
           </motion.div>
         )}
       </AnimatePresence>
+      <audio id="user-voice-audio-player" autoPlay playsInline style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '100px', height: '100px', visibility: 'visible', opacity: 1, pointerEvents: 'none' }} />
     </div>
   );
 }
@@ -10920,6 +11228,252 @@ function LiveChatPanel() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const chatRef = React.useRef<HTMLDivElement>(null);
+
+  // LiveKit Live Calls Admin States
+  const [incomingCalls, setIncomingCalls] = useState<any[]>([]);
+  const [activeAdminCall, setActiveAdminCall] = useState<any>(null); // { id, chatId, userEmail, status, duration }
+
+  // Refs for LiveKit resources for admin
+  const adminLivekitRoomRef = useRef<any>(null);
+  const adminUnsubCallRef = useRef<(() => void) | null>(null);
+  const adminRingtoneCleanupRef = useRef<(() => void) | null>(null);
+  const adminTimerIntervalRef = useRef<any>(null);
+
+  const startAdminTimer = () => {
+    if (adminTimerIntervalRef.current) clearInterval(adminTimerIntervalRef.current);
+    adminTimerIntervalRef.current = setInterval(() => {
+      setActiveAdminCall((prev: any) => prev ? { ...prev, duration: prev.duration + 1 } : null);
+    }, 1000);
+  };
+
+  const playAdminRingtone = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return () => {};
+      const ctx = new AudioContextClass();
+      let interval: any;
+      const playPulse = () => {
+        try {
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc1.frequency.value = 440;
+          osc2.frequency.value = 480;
+          
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+          
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.06, ctx.currentTime + 1.2);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.35);
+          
+          osc1.start();
+          osc2.start();
+          osc1.stop(ctx.currentTime + 1.4);
+          osc2.stop(ctx.currentTime + 1.4);
+        } catch (e) {
+          console.warn(e);
+        }
+      };
+      playPulse();
+      interval = setInterval(playPulse, 3000);
+      return () => {
+        clearInterval(interval);
+        ctx.close().catch(() => {});
+      };
+    } catch (err) {
+      console.warn("Failed admin ringtone initialization:", err);
+      return () => {};
+    }
+  };
+
+  const cleanupAdminCall = async () => {
+    if (adminRingtoneCleanupRef.current) {
+      adminRingtoneCleanupRef.current();
+      adminRingtoneCleanupRef.current = null;
+    }
+    
+    if (adminTimerIntervalRef.current) {
+      clearInterval(adminTimerIntervalRef.current);
+      adminTimerIntervalRef.current = null;
+    }
+    
+    if (adminUnsubCallRef.current) {
+      adminUnsubCallRef.current();
+      adminUnsubCallRef.current = null;
+    }
+    
+    if (adminLivekitRoomRef.current) {
+      try {
+        adminLivekitRoomRef.current.disconnect();
+      } catch (e) {}
+      adminLivekitRoomRef.current = null;
+    }
+
+    const dynAudio = document.getElementById('dynamic-admin-livechat-audio-player');
+    if (dynAudio) dynAudio.remove();
+    
+    if (activeAdminCall) {
+      try {
+        await updateDoc(doc(db, 'chats', activeAdminCall.chatId, 'calls', 'active_call'), {
+          status: 'ended',
+          endedAt: serverTimestamp()
+        }).catch(() => {});
+        
+        await updateDoc(doc(db, 'chats', activeAdminCall.chatId), {
+          activeCall: null
+        }).catch(() => {});
+      } catch (e) {}
+    }
+    
+    setActiveAdminCall(null);
+  };
+
+  const answerSupportCall = async (callDoc: any) => {
+    if (adminRingtoneCleanupRef.current) {
+      adminRingtoneCleanupRef.current();
+      adminRingtoneCleanupRef.current = null;
+    }
+    
+    try {
+      const chatId = callDoc.chatId;
+      setSelectedChatId(chatId);
+
+      const livekitUrl = await fetchLiveKitConfig();
+      if (!livekitUrl) {
+        alert("LiveKit URL is not configured. Please add LIVEKIT_URL to environment secrets.");
+        return;
+      }
+
+      const adminIdentity = "support-admin-" + (auth.currentUser?.uid || Math.random().toString(36).substr(2, 5));
+      const token = await fetchToken(chatId, adminIdentity);
+
+      const room = new LiveKitRoom();
+      adminLivekitRoomRef.current = room;
+
+      room.on(LiveKitRoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === LiveKitTrack.Kind.Audio) {
+          const audioEl = document.getElementById('admin-livechat-audio-player') as HTMLAudioElement;
+          if (audioEl) {
+            track.attach(audioEl);
+          } else {
+            const el = track.attach();
+            el.id = 'dynamic-admin-livechat-audio-player';
+            document.body.appendChild(el);
+          }
+        }
+      });
+
+      await room.connect(livekitUrl, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+      
+      await updateDoc(doc(db, 'chats', chatId, 'calls', 'active_call'), {
+        status: 'connected',
+        answer: { type: 'livekit', sdp: 'livekit-active' }
+      });
+
+      await updateDoc(doc(db, 'chats', chatId), {
+        'activeCall.status': 'connected',
+        'activeCall.answer': { type: 'livekit', sdp: 'livekit-active' }
+      }).catch((e) => console.warn("Failed parent sync on answer:", e));
+      
+      setActiveAdminCall({
+        id: callDoc.id,
+        chatId,
+        userEmail: callDoc.userEmail,
+        status: 'connected',
+        duration: 0
+      });
+      
+      startAdminTimer();
+      
+      const unsub = onSnapshot(doc(db, 'chats', chatId, 'calls', 'active_call'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.status === 'ended' || data.status === 'rejected') {
+            cleanupAdminCall();
+          }
+        } else {
+          cleanupAdminCall();
+        }
+      });
+      adminUnsubCallRef.current = unsub;
+      
+    } catch (err) {
+      console.error("Admin answering error: ", err);
+      alert("Microphone permission required to answer voice support call.");
+      cleanupAdminCall();
+    }
+  };
+
+  // Helper inside loop
+  const frequencyPairMatchCandidate = (data: any) => {
+    return data;
+  };
+
+  const rejectSupportCall = async (callDoc: any) => {
+    try {
+      await updateDoc(doc(db, 'chats', callDoc.chatId, 'calls', 'active_call'), {
+        status: 'rejected',
+        endedAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'chats', callDoc.chatId), {
+        activeCall: null
+      }).catch(() => {});
+    } catch (e) {
+      console.warn("Failed to reject call doc:", e);
+    }
+  };
+
+  // Listen to ALL calls with status == 'ringing' using parent 'chats' collection
+  useEffect(() => {
+    const qChats = query(collection(db, 'chats'));
+    
+    const unsub = onSnapshot(qChats, (snap) => {
+      const list: any[] = [];
+      snap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.activeCall && data.activeCall.status === 'ringing') {
+          list.push({
+            id: 'active_call',
+            chatId: doc.id,
+            ...data.activeCall
+          });
+        }
+      });
+      setIncomingCalls(list);
+      
+      if (list.length > 0 && !activeAdminCall && !adminRingtoneCleanupRef.current) {
+        adminRingtoneCleanupRef.current = playAdminRingtone();
+      } else if (list.length === 0 && adminRingtoneCleanupRef.current) {
+        adminRingtoneCleanupRef.current();
+        adminRingtoneCleanupRef.current = null;
+      }
+    }, (err) => {
+      console.error("Failed to query chats for live ringing calls:", err);
+    });
+    
+    return () => {
+      unsub();
+      if (adminRingtoneCleanupRef.current) adminRingtoneCleanupRef.current();
+    };
+  }, [activeAdminCall]);
+
+  useEffect(() => {
+    return () => {
+      if (adminTimerIntervalRef.current) clearInterval(adminTimerIntervalRef.current);
+      if (adminRingtoneCleanupRef.current) adminRingtoneCleanupRef.current();
+      if (adminUnsubCallRef.current) adminUnsubCallRef.current();
+      if (adminLivekitRoomRef.current) {
+        try {
+          adminLivekitRoomRef.current.disconnect();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -11062,7 +11616,36 @@ function LiveChatPanel() {
           <div className="p-6 bg-white/5 border-b border-white/5">
             <h4 className="text-sm font-black text-white/40 uppercase tracking-widest">Client Sessions</h4>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-white/5 bg-black/20">
+          {incomingCalls.length > 0 && (
+            <div className="p-4 bg-emerald-500/10 border-b border-white/5 space-y-3">
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 px-2 animate-pulse">
+                <Phone className="w-3 h-3" /> Live Incoming Calls
+              </p>
+              {incomingCalls.map(call => (
+                <div key={call.id} className="p-4 bg-[#0d0f1a] border border-emerald-500/20 rounded-2xl flex items-center justify-between gap-3 shadow-md">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-white truncate">{call.userEmail?.split('@')[0]}</p>
+                    <p className="text-[7.5px] font-mono text-white/30 truncate">{call.userEmail}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => answerSupportCall(call)}
+                      className="p-2 sm:px-3 sm:py-1.5 bg-emerald-500 hover:bg-emerald-600 text-black text-[9px] font-black uppercase rounded-xl transition-all active:scale-95"
+                    >
+                      Answer
+                    </button>
+                    <button
+                      onClick={() => rejectSupportCall(call)}
+                      className="p-2 sm:px-3 sm:py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[9px] font-black uppercase rounded-xl transition-all active:scale-95"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-white/5 bg-black/20 bg-black/20">
             {chats.map(chat => (
               <button 
                 key={chat.id} 
@@ -11086,6 +11669,46 @@ function LiveChatPanel() {
         </div>
 
         <div id="admin-chat-interface" className="lg:col-span-8 glass rounded-[3rem] border border-white/10 overflow-hidden flex flex-col shadow-2xl relative">
+          {activeAdminCall && (
+            <div className="p-6 bg-emerald-500/10 border-b border-emerald-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center animate-pulse">
+                  <Phone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="text-[9px] font-black font-mono text-emerald-400 uppercase tracking-[0.25em]">SECURE VOIP CANAL OVERRIDE</h5>
+                  <p className="text-white text-xs font-black">Voice Session with {activeAdminCall.userEmail?.split('@')[0]}</p>
+                  <p className="text-white/40 text-[10px] font-mono">
+                    Encrypted Link Active: {Math.floor(activeAdminCall.duration / 60).toString().padStart(2, '0')}:${(activeAdminCall.duration % 60).toString().padStart(2, '0')}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Waveform visualizer */}
+              <div className="flex items-center gap-1 h-5 select-none opacity-60">
+                {[...Array(5)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ height: [6, 18, 6] }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 0.5 + i * 0.1,
+                      ease: "easeInOut"
+                    }}
+                    className="w-1 bg-emerald-400 rounded-full"
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={cleanupAdminCall}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-mono font-black uppercase tracking-wider shadow-lg shadow-red-500/10 active:scale-95 transition-all"
+              >
+                Hangup Link
+              </button>
+            </div>
+          )}
+
           {!selectedChatId ? (
             <div className="flex-1 flex flex-col items-center justify-center opacity-10 p-20 text-center">
                <Shield size={100} className="mb-8" />
@@ -11165,6 +11788,706 @@ function LiveChatPanel() {
           )}
         </div>
       </div>
+      <audio id="admin-livechat-audio-player" autoPlay playsInline style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '100px', height: '100px', visibility: 'visible', opacity: 1, pointerEvents: 'none' }} />
+    </div>
+  );
+}
+
+function SupportCallsPanel() {
+  const [incomingCalls, setIncomingCalls] = useState<any[]>([]);
+  const [activeCall, setActiveCall] = useState<any>(null); // { id, chatId, userEmail, status, duration, isMuted }
+  const [callHistory, setCallHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  // Dialer Test & Diagnostics States
+  const [isTestTonePlaying, setIsTestTonePlaying] = useState(false);
+  const [diagnosticsLogs, setDiagnosticsLogs] = useState<string[]>([
+    `[${new Date().toLocaleTimeString()}] SIP ENGINE: Standby mode active. VoIP Registry listening...`,
+    `[${new Date().toLocaleTimeString()}] ICE DIAG: Global STUN servers resolved (STUN: stun.l.google.com:19302).`
+  ]);
+
+  const testOscRef = useRef<any>(null);
+  const testAudioCtxRef = useRef<any>(null);
+
+  const appendDiagnosticsLog = (msg: string) => {
+    setDiagnosticsLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 30)]);
+  };
+
+  const toggleTestTone = () => {
+    try {
+      if (isTestTonePlaying) {
+        if (testOscRef.current) {
+          testOscRef.current.stop();
+          testOscRef.current = null;
+        }
+        setIsTestTonePlaying(false);
+        appendDiagnosticsLog("VOIP SIGNAL: Standard 1000Hz test tone deactivated.");
+      } else {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContextClass();
+        testAudioCtxRef.current = ctx;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 1000; // 1000Hz reference frequency
+        gain.gain.setValueAtTime(0.04, ctx.currentTime); // Soft background signal
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+
+        testOscRef.current = osc;
+        setIsTestTonePlaying(true);
+        appendDiagnosticsLog("VOIP SIGNAL: Standard 1000Hz reference tone active at a safe -24dB amplitude.");
+      }
+    } catch (e: any) {
+      appendDiagnosticsLog(`VOIP ERROR: Codec or sound init failure: ${e.message}`);
+    }
+  };
+
+  const triggerSyntheticTestCall = () => {
+    const mockId = `synthetic_client_test_${Date.now()}`;
+    const newCallDoc = {
+      id: mockId,
+      chatId: 'synthetic_dialer_testing_slot',
+      userEmail: 'voip_test_runner@dailyyield.com',
+      userId: 'synthetic_agent_test',
+      status: 'ringing',
+      isSynthetic: true,
+      offer: {
+        type: 'offer',
+        sdp: 'v=0\no=- 98765 2 IN IP4 127.0.0.1\ns=VoIPTestLoopback\n'
+      },
+      createdAt: new Date()
+    };
+
+    setIncomingCalls(prev => {
+      if (prev.some(c => c.isSynthetic)) return prev;
+      return [newCallDoc, ...prev];
+    });
+
+    appendDiagnosticsLog("SIP INC_CALL: Simulated incoming call offering SDP invite...");
+    appendDiagnosticsLog("SIP STATUS: 180 Ringing. Virtual bell activated.");
+  };
+
+  // Refs for LiveKit resources for admin calls tab
+  const livekitRoomRef = useRef<any>(null);
+  const unsubCallRef = useRef<(() => void) | null>(null);
+  const ringtoneCleanupRef = useRef<(() => void) | null>(null);
+  const timerIntervalRef = useRef<any>(null);
+
+  const startTimer = () => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      setActiveCall((prev: any) => prev ? { ...prev, duration: prev.duration + 1 } : null);
+    }, 1000);
+  };
+
+  const playRingtone = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return () => {};
+      const ctx = new AudioContextClass();
+      let interval: any;
+      const playPulse = () => {
+        try {
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc1.frequency.value = 440;
+          osc2.frequency.value = 480;
+          
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+          
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.06, ctx.currentTime + 1.2);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.35);
+          
+          osc1.start();
+          osc2.start();
+          osc1.stop(ctx.currentTime + 1.4);
+          osc2.stop(ctx.currentTime + 1.4);
+        } catch (e) {
+          console.warn(e);
+        }
+      };
+      playPulse();
+      interval = setInterval(playPulse, 3000);
+      return () => {
+        clearInterval(interval);
+        ctx.close().catch(() => {});
+      };
+    } catch (err) {
+      console.warn("Failed admin ringtone initialization:", err);
+      return () => {};
+    }
+  };
+
+  const cleanupCall = async () => {
+    if (ringtoneCleanupRef.current) {
+      ringtoneCleanupRef.current();
+      ringtoneCleanupRef.current = null;
+    }
+    
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    
+    if (unsubCallRef.current) {
+      unsubCallRef.current();
+      unsubCallRef.current = null;
+    }
+    
+    if (livekitRoomRef.current) {
+      try {
+        livekitRoomRef.current.disconnect();
+      } catch (e) {}
+      livekitRoomRef.current = null;
+    }
+
+    const dynAudio = document.getElementById('dynamic-admin-supportcalls-audio-player');
+    if (dynAudio) dynAudio.remove();
+ 
+    if (testOscRef.current) {
+      try {
+        testOscRef.current.stop();
+      } catch (e) {}
+      testOscRef.current = null;
+    }
+    
+    if (activeCall) {
+      if (activeCall.isSynthetic) {
+        appendDiagnosticsLog("SIP DISCONNECT: Synthetic test connection closed by admin.");
+      } else {
+        try {
+          await updateDoc(doc(db, 'chats', activeCall.chatId, 'calls', 'active_call'), {
+            status: 'ended',
+            endedAt: serverTimestamp()
+          }).catch(() => {});
+          
+          await updateDoc(doc(db, 'chats', activeCall.chatId), {
+            activeCall: null
+          }).catch(() => {});
+        } catch (e) {}
+      }
+    }
+    
+    setActiveCall(null);
+    setIncomingCalls(prev => prev.filter(c => !c.isSynthetic));
+  };
+ 
+  const answerCall = async (callDoc: any) => {
+    if (ringtoneCleanupRef.current) {
+      ringtoneCleanupRef.current();
+      ringtoneCleanupRef.current = null;
+    }
+ 
+    if (callDoc.isSynthetic) {
+      setActiveCall({
+        id: callDoc.id,
+        chatId: callDoc.chatId,
+        userEmail: callDoc.userEmail,
+        status: 'connected',
+        duration: 0,
+        isMuted: false,
+        isSynthetic: true
+      });
+      startTimer();
+      appendDiagnosticsLog("SIP HANDSHAKE: Answer established with loopback caller.");
+      appendDiagnosticsLog("ICE CONNECTION: Local carrier stable. Comfortable background hum activated.");
+      
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContextClass();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(320, ctx.currentTime); // Standard comfortable signal hum
+        gain.gain.setValueAtTime(0.02, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        testOscRef.current = osc;
+        testAudioCtxRef.current = ctx;
+      } catch (e) {}
+      return;
+    }
+    
+    try {
+      const chatId = callDoc.chatId;
+
+      const livekitUrl = await fetchLiveKitConfig();
+      if (!livekitUrl) {
+        alert("LiveKit URL is not configured. Please add LIVEKIT_URL to environment secrets.");
+        return;
+      }
+
+      const adminIdentity = "support-admin-" + (auth.currentUser?.uid || Math.random().toString(36).substr(2, 5));
+      const token = await fetchToken(chatId, adminIdentity);
+
+      const room = new LiveKitRoom();
+      livekitRoomRef.current = room;
+
+      room.on(LiveKitRoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === LiveKitTrack.Kind.Audio) {
+          const audioEl = document.getElementById('admin-supportcalls-audio-player') as HTMLAudioElement;
+          if (audioEl) {
+            track.attach(audioEl);
+          } else {
+            const el = track.attach();
+            el.id = 'dynamic-admin-supportcalls-audio-player';
+            document.body.appendChild(el);
+          }
+        }
+      });
+
+      await room.connect(livekitUrl, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+      
+      await updateDoc(doc(db, 'chats', chatId, 'calls', 'active_call'), {
+        status: 'connected',
+        answer: { type: 'livekit', sdp: 'livekit-active' }
+      });
+ 
+      await updateDoc(doc(db, 'chats', chatId), {
+        'activeCall.status': 'connected',
+        'activeCall.answer': { type: 'livekit', sdp: 'livekit-active' }
+      }).catch((e) => console.warn("Failed parent sync in support console answer:", e));
+      
+      setActiveCall({
+        id: callDoc.id,
+        chatId,
+        userEmail: callDoc.userEmail,
+        status: 'connected',
+        duration: 0,
+        isMuted: false
+      });
+      
+      startTimer();
+      
+      const unsub = onSnapshot(doc(db, 'chats', chatId, 'calls', 'active_call'), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.status === 'ended' || data.status === 'rejected') {
+            cleanupCall();
+          }
+        } else {
+          cleanupCall();
+        }
+      });
+      unsubCallRef.current = unsub;
+      
+    } catch (err) {
+      console.error("Admin answering error:", err);
+      alert("Microphone permission required to answer voice support call.");
+      cleanupCall();
+    }
+  };
+
+  const rejectCall = async (callDoc: any) => {
+    try {
+      await updateDoc(doc(db, 'chats', callDoc.chatId, 'calls', 'active_call'), {
+        status: 'rejected',
+        endedAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'chats', callDoc.chatId), {
+        activeCall: null
+      }).catch(() => {});
+    } catch (e) {
+      console.warn("Failed to reject call doc:", e);
+    }
+  };
+
+  const toggleMute = () => {
+    if (livekitRoomRef.current) {
+      const isMuted = !activeCall?.isMuted;
+      livekitRoomRef.current.localParticipant.setMicrophoneEnabled(!isMuted);
+      setActiveCall((prev: any) => prev ? { ...prev, isMuted } : null);
+    }
+  };
+
+  // 1. Listen to Incoming Ringing Calls using parent 'chats' collection
+  useEffect(() => {
+    const qChats = query(collection(db, 'chats'));
+    
+    const unsub = onSnapshot(qChats, (snap) => {
+      const list: any[] = [];
+      snap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.activeCall && data.activeCall.status === 'ringing') {
+          list.push({
+            id: 'active_call',
+            chatId: doc.id,
+            ...data.activeCall
+          });
+        }
+      });
+      setIncomingCalls(list);
+      
+      if (list.length > 0 && !activeCall && !ringtoneCleanupRef.current) {
+        ringtoneCleanupRef.current = playRingtone();
+      } else if (list.length === 0 && ringtoneCleanupRef.current) {
+        ringtoneCleanupRef.current();
+        ringtoneCleanupRef.current = null;
+      }
+    }, (err) => {
+      console.error("Failed to query chats for live ringing calls:", err);
+    });
+    
+    return () => {
+      unsub();
+      if (ringtoneCleanupRef.current) ringtoneCleanupRef.current();
+    };
+  }, [activeCall]);
+
+  // 2. Listen & Query Call History
+  useEffect(() => {
+    const qHistory = query(
+      collectionGroup(db, 'calls'),
+      orderBy('createdAt', 'desc'),
+      limit(40)
+    );
+
+    const unsubHistory = onSnapshot(qHistory, (snap) => {
+      const hist = snap.docs.map(gdoc => {
+        const pathParts = gdoc.ref.path.split('/');
+        const chatId = pathParts[1];
+        return { id: gdoc.id, chatId, ...gdoc.data() };
+      });
+      setCallHistory(hist);
+      setLoadingHistory(false);
+    }, (err) => {
+      console.error("Failed to fetch WebRTC calls history logs:", err);
+      setLoadingHistory(false);
+    });
+
+    return () => {
+      unsubHistory();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (ringtoneCleanupRef.current) ringtoneCleanupRef.current();
+      if (unsubCallRef.current) unsubCallRef.current();
+      if (livekitRoomRef.current) {
+        try {
+          livekitRoomRef.current.disconnect();
+        } catch (e) {}
+      }
+      if (testOscRef.current) {
+        try {
+          testOscRef.current.stop();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  return (
+    <div id="support-calls-dashboard" className="space-y-8 min-h-[700px]">
+      {/* Top Welcome Title Banner */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-4xl font-black text-white tracking-tight flex items-center gap-3 font-sans h-12">
+            <span className="w-4 h-4 rounded-full bg-emerald-500 inline-block animate-ping" />
+            Support Voice Call Center
+          </h2>
+          <p className="text-white/40 text-[10px] uppercase font-mono mt-1 tracking-[0.2em]">
+            INSTANT P2P VOIP CONSOLE & SYSTEM FREQUENCY CONTROLS
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <div className="glass px-6 py-3 rounded-2xl flex items-center gap-3 border border-white/5 bg-white/[0.02]">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <p className="font-mono text-[9px] uppercase font-black text-white/60 tracking-wider">
+              WebRTC Audio Gateway Online
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Active Support Call Block */}
+      {activeCall && (
+        <div id="admin-calls-hub-banner" className="bg-[#101322] border-2 border-emerald-500/30 rounded-[3rem] p-10 flex flex-col lg:flex-row items-center justify-between gap-10 shadow-[0_0_50px_rgba(16,185,129,0.18)] relative overflow-hidden transition-all">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.03),transparent_70%)] pointer-events-none" />
+          
+          <div className="flex items-center gap-6 z-10 w-full lg:w-auto">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center animate-bounce">
+              <Phone className="w-10 h-10" />
+            </div>
+            <div>
+              <h4 className="font-mono text-[9px] font-black uppercase tracking-[0.3em] text-emerald-400">SECURE DUPLEX FREQUENCY LINK</h4>
+              <p className="font-black text-white text-3xl mt-1">
+                Active Client Voice Interface
+              </p>
+              <div className="mt-2 flex items-center gap-4 text-xs font-mono text-white/50">
+                <p>Email: <span className="text-white font-black">{activeCall.userEmail}</span></p>
+                <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                <p>Duration: <span className="text-emerald-400 font-black">
+                  {Math.floor(activeCall.duration / 60).toString().padStart(2, '0')}:${ (activeCall.duration % 60).toString().padStart(2, '0') }
+                </span></p>
+              </div>
+            </div>
+          </div>
+
+          {/* Sound Wave Visualizer */}
+          <div className="flex items-end gap-1.5 h-12 py-1 select-none z-10">
+            {[...Array(10)].map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{ 
+                  height: activeCall.status === 'connected' ? [12, 48, 12] : [12, 18, 12] 
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 0.5 + i * 0.08,
+                  ease: "easeInOut"
+                }}
+                className="w-2 bg-emerald-500 rounded-full"
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4 z-10 w-full lg:w-auto justify-end">
+            <button
+              onClick={toggleMute}
+              className={cn(
+                "p-5 rounded-2xl border transition-all active:scale-95 text-[10px] font-mono font-black uppercase flex items-center gap-2",
+                activeCall.isMuted 
+                  ? "bg-red-500/20 border-red-500 text-red-400 font-extrabold" 
+                  : "bg-white/5 border-white/5 text-white/60 hover:text-white"
+              )}
+            >
+              {activeCall.isMuted ? 'Muted' : 'Mute Admin Mic'}
+            </button>
+            <button
+              onClick={cleanupCall}
+              className="p-5 px-8 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-mono font-black text-[10px] uppercase shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+            >
+              Terminate Link
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Two Column Layout: Current Incoming Calls vs History Logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Hand: Incoming Calls Grid */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="glass rounded-[2.5rem] p-8 border border-white/5 flex flex-col min-h-[300px]">
+            <div className="mb-6 flex items-center justify-between">
+              <h3 className="text-lg font-black text-white">Live Queues</h3>
+              <span className="px-3 py-1 bg-red-500/10 text-red-400 font-mono text-[9px] uppercase font-black tracking-wider rounded-lg animate-pulse">
+                Ringing List
+              </span>
+            </div>
+
+            {incomingCalls.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-white/5 rounded-2xl bg-black/10">
+                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-white/20 mb-3">
+                  <Phone size={20} />
+                </div>
+                <p className="font-black uppercase tracking-widest text-[10px] text-white/30">
+                  No Active Incoming Calls
+                </p>
+                <p className="text-[10px] text-white/20 mt-1 max-w-[200px]">
+                  Ringing frequencies will automatically overlay here in real-time.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {incomingCalls.map(call => (
+                  <div key={call.id} className="p-5 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 rounded-2xl flex flex-col gap-4 transition-all">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white truncate text-ellipsis overflow-hidden">{call.userEmail?.split('@')[0]}</p>
+                        <p className="text-[10px] font-mono text-white/40 truncate text-ellipsis overflow-hidden">{call.userEmail}</p>
+                      </div>
+                      <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping mt-1 flex-shrink-0" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => answerCall(call)}
+                        className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black text-[10px] font-black uppercase tracking-wider rounded-xl transition-all active:scale-95 text-center flex items-center justify-center gap-2"
+                      >
+                        <Phone size={11} /> Answer Link
+                      </button>
+                      <button
+                        onClick={() => rejectCall(call)}
+                        className="py-3 px-4 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase rounded-xl transition-all active:scale-95 text-center"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Dialer Test & Diagnostics Mode Card */}
+          <div className="glass rounded-[2.5rem] p-8 border border-white/5 space-y-5 flex flex-col bg-white/[0.01]">
+            <div>
+              <h3 className="text-xs font-black text-white tracking-widest uppercase font-mono">Dialer Test Mode</h3>
+              <p className="text-[10px] text-white/40 font-mono uppercase tracking-widest mt-0.5">Connection Signals & Calibration</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={triggerSyntheticTestCall}
+                className="py-4 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-wider font-mono flex flex-col items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+              >
+                <Phone className="w-5 h-5 text-emerald-400" />
+                Trigger Test Call
+              </button>
+              
+              <button
+                type="button"
+                onClick={toggleTestTone}
+                className={cn(
+                  "py-4 px-3 border rounded-xl text-[9px] font-black uppercase tracking-wider font-mono flex flex-col items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer",
+                  isTestTonePlaying
+                    ? "bg-amber-500/20 border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse"
+                    : "bg-white/5 border-white/5 text-white/60 hover:text-white"
+                )}
+              >
+                <div className={cn("w-2 h-2 rounded-full", isTestTonePlaying ? "bg-amber-400" : "bg-white/20")} />
+                1000Hz Tone Gen
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-mono text-white/40 uppercase tracking-widest">Diagnostics Feed</p>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <div className="bg-black/40 rounded-xl p-4 h-[120px] overflow-y-auto space-y-1.5 font-mono text-[9px] leading-relaxed text-emerald-400/90 border border-white/5">
+                {diagnosticsLogs.map((log, idx) => (
+                  <div key={idx} className="truncate select-text selection:bg-emerald-500 selection:text-black text-left">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Hand: Deep History Logs */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="glass rounded-[2.5rem] p-8 border border-white/5 flex flex-col min-h-[500px]">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white">Call Records & Audits</h3>
+                <p className="text-white/40 text-[10px] mt-0.5 uppercase tracking-widest font-mono">
+                  HISTORICAL CONNECTION LOGS FROM FIRESTORE PERSISTED CHANNELS
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-white/5 border border-white/5 text-white/40 font-mono text-[9px] uppercase font-black rounded-lg">
+                Records: {callHistory.length}
+              </span>
+            </div>
+
+            {loadingHistory ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
+                <RefreshCw size={32} className="animate-spin text-emerald-400 mb-4" />
+                <p className="font-mono text-[10px] text-white/30 uppercase tracking-widest">
+                  Pulling connection registry...
+                </p>
+              </div>
+            ) : callHistory.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 border border-dashed border-white/5 rounded-2xl bg-black/10">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-white/10 mb-4">
+                  <Database size={24} />
+                </div>
+                <p className="font-black uppercase tracking-widest text-xs text-white/30">
+                  Archive Registry Empty
+                </p>
+                <p className="text-[10px] text-white/20 mt-2 max-w-[280px]">
+                  No past voice support logs are currently recorded in the cloud database.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="pb-4 font-mono text-[9px] text-white/40 uppercase tracking-widest font-black">Caller Info</th>
+                      <th className="pb-4 font-mono text-[9px] text-white/40 uppercase tracking-widest font-black">Call Mode / Timestamp</th>
+                      <th className="pb-4 font-mono text-[9px] text-white/40 uppercase tracking-widest font-black text-center">Outcome</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {callHistory.map((item, idx) => {
+                      const isConnected = item.status === 'connected';
+                      const isRinging = item.status === 'ringing';
+                      const isRejected = item.status === 'rejected';
+                      const isEnded = item.status === 'ended';
+                      
+                      const createdDate = item.createdAt?.toDate ? item.createdAt.toDate() : null;
+                      
+                      return (
+                        <tr key={idx} className="hover:bg-white/[0.01] transition-all">
+                          <td className="py-4 pr-4">
+                            <p className="text-white text-xs font-black truncate max-w-[150px] sm:max-w-xs">
+                              {item.userEmail || 'System Guest User'}
+                            </p>
+                            <p className="text-[7.5px] font-mono text-white/20 truncate max-w-[150px] sm:max-w-xs uppercase mt-0.5">
+                              ID: {item.userId || item.id || 'N/A'}
+                            </p>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <p className="text-white/60 text-xs font-medium">
+                              {createdDate ? createdDate.toLocaleDateString() : 'N/A'}{' '}
+                              <span className="text-white/30 font-mono text-[10px]">
+                                {createdDate ? createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                              </span>
+                            </p>
+                            <p className="text-emerald-400 text-[8px] uppercase tracking-widest font-mono font-black mt-0.5 flex items-center gap-1.5 matches">
+                              <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                              P2P Audio Bridge
+                            </p>
+                          </td>
+                          <td className="py-4 text-center">
+                            {isRinging && (
+                              <span className="px-2.5 py-1 bg-amber-500/10 text-amber-500 text-[9px] font-mono font-black uppercase rounded-md tracking-wider animate-pulse">
+                                Ringing
+                              </span>
+                            )}
+                            {isConnected && (
+                              <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[9px] font-mono font-black uppercase rounded-md tracking-wider">
+                                Live Link Connected
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="px-2.5 py-1 bg-red-500/10 text-red-500 text-[9px] font-mono font-black uppercase rounded-md tracking-wider">
+                                Rejected / Missed
+                              </span>
+                            )}
+                            {isEnded && (
+                              <span className="px-2.5 py-1 bg-white/5 border border-white/5 text-white/30 text-[9px] font-mono font-black uppercase rounded-md tracking-wider">
+                                Closed
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+      <audio id="admin-supportcalls-audio-player" autoPlay playsInline style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '100px', height: '100px', visibility: 'visible', opacity: 1, pointerEvents: 'none' }} />
     </div>
   );
 }

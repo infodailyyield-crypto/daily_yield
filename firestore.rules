@@ -169,6 +169,22 @@ service cloud.firestore {
         allow get: if isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
         allow create: if (isAdmin() || (isSignedIn() && incoming().userId == request.auth.uid)) && isValidMessage(incoming());
       }
+
+      match /calls/{callId} {
+        allow read, write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid);
+        
+        match /candidates/{candidateId} {
+          allow read, write: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid);
+        }
+      }
+    }
+
+    // --- Voice Calls & Candidates Collection Group Rules ---
+    match /{path=**}/calls/{callId} {
+      allow read, write: if isAdmin();
+    }
+    match /{path=**}/candidates/{candidateId} {
+      allow read, write: if isAdmin();
     }
 
     // --- Investments ---

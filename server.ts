@@ -425,6 +425,57 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
+  // API: Get LiveKit URL
+  app.get("/api/livekit-config", (req, res) => {
+    // Return the LiveKit URL from environment variables safely
+    const url = process.env.LIVEKIT_URL;
+    res.json({ url: url || "" });
+  });
+
+  // API: Generate LiveKit Token
+  app.post("/api/token", async (req, res) => {
+    const { roomId, identity } = req.body;
+
+    if (!roomId) {
+      return res.status(400).json({ error: "Missing roomId parameter (Firestore call ID)" });
+    }
+    if (!identity) {
+      return res.status(400).json({ error: "Missing identity parameter (User UID)" });
+    }
+
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (!apiKey || !apiSecret) {
+      console.error("[LiveKit Token] Missing LIVEKIT_API_KEY or LIVEKIT_API_SECRET on server");
+      return res.status(500).json({ 
+        error: "Server keys missing", 
+        details: "Server not configured for LiveKit yet. Please add LIVEKIT_API_KEY and LIVEKIT_API_SECRET in settings." 
+      });
+    }
+
+    try {
+      const { AccessToken } = await import("livekit-server-sdk");
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity: identity,
+      });
+
+      at.addGrant({
+        roomJoin: true,
+        room: roomId,
+        canPublish: true,
+        canPublishData: true,
+        canSubscribe: true,
+      });
+
+      const token = await at.toJwt();
+      res.json({ token });
+    } catch (err: any) {
+      console.error("[LiveKit Token Error]:", err);
+      res.status(500).json({ error: "Failed to generate token", details: err.message });
+    }
+  });
+
   // API: Push Subscription
   app.post("/api/push/subscribe", async (req, res) => {
     const { subscription, userId } = req.body;
