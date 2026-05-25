@@ -425,6 +425,57 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
+  // API: ChatBot with OpenRouter API (Proxy requests securely)
+  app.post("/api/chatbot/completions", async (req, res) => {
+    const { messages, model } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Missing or invalid messages parameter." });
+    }
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      console.warn("[OpenRouter API] Missing OPENROUTER_API_KEY in environment");
+      return res.status(500).json({ 
+        error: "OpenRouter API Key is not configured on the server yet.",
+        details: "Please add the OPENROUTER_API_KEY in the environment secrets."
+      });
+    }
+
+    // Default to an elegant free/cheap model, e.g. "google/gemini-2.5-flash"
+    const selectedModel = model || "google/gemini-2.5-flash";
+
+    try {
+      const response = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: selectedModel,
+          messages: messages,
+          max_tokens: req.body.max_tokens || 1500
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": process.env.APP_URL || "https://ai.studio/build",
+            "X-Title": "Daily Yield AI Platform",
+          },
+          timeout: 45000, // 45 seconds timeout
+        }
+      );
+
+      res.json(response.data);
+    } catch (err: any) {
+      console.error("[OpenRouter Error]:", err.response?.data || err.message);
+      const status = err.response?.status || 500;
+      const errorData = err.response?.data || { error: err.message };
+      res.status(status).json({
+        error: "Failed to communicate with OpenRouter API",
+        details: errorData,
+      });
+    }
+  });
+
   // API: Get LiveKit URL
   app.get("/api/livekit-config", (req, res) => {
     // Return the LiveKit URL from environment variables safely

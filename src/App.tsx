@@ -10,7 +10,7 @@ import {
   Gamepad2, Wallet, LogIn, LogOut, TrendingUp, 
   Plus, History, Shield, Calendar, Lock,
   Trophy, CheckCircle2, Bell, ArrowUpRight, 
-  ArrowDownLeft, UserCircle, Settings, CreditCard, Users, UserPlus,
+  ArrowDownLeft, UserCircle, Settings, CreditCard, Users, UserPlus, Bot,
   Check, Copy, Upload, AlertCircle, Mail,
   Dice6 as Dices, Sparkles, Files, 
   Coins, Target, Package as Boxes, 
@@ -75,6 +75,7 @@ import { OnePlayWalletModal } from './components/OnePlayWalletModal';
 import { OnePlayGameView } from './components/OnePlayGameView';
 import { OnePlayCodeView } from './components/OnePlayCodeView';
 import { OnePlayAdminCodesPanel } from './components/OnePlayAdminCodesPanel';
+import { ChatBotPage } from './components/ChatBotPage';
 
 // --- Push Helpers ---
 const triggerPush = async (userId: string, title: string, body: string, url: string = "/") => {
@@ -113,7 +114,7 @@ const broadcastPush = async (title: string, body: string, url: string = "/") => 
 };
 
 // --- Types ---
-type View = 'dashboard' | 'portfolio' | 'gamehub' | 'marketduel' | 'wallet' | 'notifications' | 'account' | 'admin' | 'invest' | 'referral' | 'faq' | 'airdrop' | 'tiers' | 'deposit-request' | 'support' | 'oneplay' | 'oneplay-game' | 'oneplay-code';
+type View = 'dashboard' | 'portfolio' | 'gamehub' | 'marketduel' | 'wallet' | 'notifications' | 'account' | 'admin' | 'invest' | 'referral' | 'faq' | 'airdrop' | 'tiers' | 'deposit-request' | 'support' | 'oneplay' | 'oneplay-game' | 'oneplay-code' | 'chatbot';
 
 interface UserProfile {
   uid: string;
@@ -1284,6 +1285,7 @@ const Sidebar = ({
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'referral', label: 'Referral System', icon: Sparkles },
     { id: 'support', label: 'Live Chat', icon: MessageCircle },
+    { id: 'chatbot', label: 'DailyYield Bot', icon: Bot },
     { id: 'faq', label: 'FAQ & Knowledge', icon: HelpCircle },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'account', label: 'Account', icon: Settings },
@@ -1294,6 +1296,7 @@ const Sidebar = ({
       { id: 'oneplay', label: 'Daily Yield One Play', icon: Play },
       { id: 'wallet', label: 'Wallet', icon: Wallet },
       { id: 'support', label: 'Live Chat', icon: MessageCircle },
+      { id: 'chatbot', label: 'DailyYield Bot', icon: Bot },
       { id: 'notifications', label: 'Notifications', icon: Bell },
       { id: 'account', label: 'Account', icon: Settings },
     ];
@@ -1864,6 +1867,112 @@ export default function App() {
     });
 
     setView('portfolio');
+  };
+
+  const aiInvest = async (planId: string, capital: number, days: number, rate: number) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    if (profile.isWalletFrozen) {
+      throw new Error("Transaction Denied: Your wallet is frozen. You cannot purchase new investment plans at this time.");
+    }
+    const currentBalance = Number(profile.balanceNGN) || 0;
+    if (currentBalance < capital) {
+      throw new Error(`Insufficient balance. (Required: ${formatCurrency(capital)} under your available balance ₦${currentBalance.toLocaleString()})`);
+    }
+
+    const expectedPayout = capital + (capital * rate);
+    const now = Timestamp.now();
+    const endTime = new Timestamp(now.seconds + (days * 24 * 60 * 60), 0);
+    
+    const invRef = doc(collection(db, 'investments'));
+    await setDoc(invRef, {
+      userId: user.uid,
+      planId,
+      capital,
+      rate,
+      durationDays: days,
+      startTime: now,
+      endTime: endTime,
+      status: 'active',
+      currentProfit: 0,
+      expectedPayout,
+      pushNotified: false
+    });
+
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      balanceNGN: increment(-capital),
+      walletBalance: increment(-capital),
+      activeInvestments: arrayUnion(invRef.id)
+    });
+
+    await setDoc(doc(collection(db, 'transactions')), {
+      userId: user.uid,
+      type: 'investment',
+      amount: capital,
+      status: 'completed',
+      createdAt: serverTimestamp()
+    });
+
+    await setDoc(doc(collection(db, 'notifications')), {
+      userId: user.uid,
+      title: 'Investment Active!',
+      message: `Your algorithmic lockbox plan of ${formatCurrency(capital)} has been registered. Expected Payout: ${formatCurrency(expectedPayout)} in ${days} Days.`,
+      type: 'deposit',
+      createdAt: serverTimestamp()
+    });
+  };
+
+  const aiPlaceBid = async (selection: 'A' | 'B', amount: number) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    if (profile.isWalletFrozen) {
+      throw new Error("Transaction Denied: Your wallet is frozen. You cannot place new bids.");
+    }
+
+    const ROUND_DURATION = 5 * 60 * 60 * 1000;
+    const currentRoundId = Math.floor(Date.now() / ROUND_DURATION);
+
+    // Dynamic conflict verification directly against database records
+    const bidsSnap = await getDocs(query(
+      collection(db, 'marketDuelBids'),
+      where('userId', '==', profile.uid || ''),
+      where('roundId', '==', currentRoundId),
+      where('status', '==', 'active')
+    ));
+    const activeRoundBids = bidsSnap.docs.map(d => d.data());
+    if (activeRoundBids.length > 0 && !activeRoundBids.some(b => b.selection === selection)) {
+      throw new Error(`Conflict Detected: You have already committed to Card ${activeRoundBids[0].selection} for this round. the other card is now locked.`);
+    }
+
+    if (isNaN(amount) || amount < 500 || amount > 50000) {
+      throw new Error("Bid must be between ₦500 and ₦50,000");
+    }
+    const currentBalance = Number(profile.balanceNGN) || 0;
+    if (currentBalance < amount) {
+      throw new Error(`Insufficient balance. (Required: ₦${amount.toLocaleString()} under your available balance ₦${currentBalance.toLocaleString()})`);
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      balanceNGN: increment(-amount),
+      walletBalance: increment(-amount)
+    });
+
+    await setDoc(doc(collection(db, 'marketDuelBids')), {
+      userId: profile.uid,
+      roundId: currentRoundId,
+      selection,
+      amount,
+      status: 'active',
+      createdAt: serverTimestamp()
+    });
+
+    await setDoc(doc(collection(db, 'transactions')), {
+      userId: profile.uid,
+      type: 'duel_bid',
+      amount: amount,
+      status: 'completed',
+      createdAt: serverTimestamp()
+    });
   };
 
   const deposit = async (amount: number) => {
@@ -2513,6 +2622,9 @@ export default function App() {
           )}
           {view === 'support' && (
             <SupportPage profile={profile} />
+          )}
+          {view === 'chatbot' && (
+            <ChatBotPage profile={profile} setView={setView} aiInvest={aiInvest} aiPlaceBid={aiPlaceBid} />
           )}
           {view === 'deposit-request' && (
             <DepositRequestPage profile={profile} prefillAmount={depositAmount} setView={setView} />
