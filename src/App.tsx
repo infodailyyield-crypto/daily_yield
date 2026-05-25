@@ -1433,6 +1433,33 @@ export default function App() {
     support: true
   });
 
+  const [customPopups, setCustomPopups] = useState<any[]>([]);
+  const [dismissedPopupIds, setDismissedPopupIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem('dismissed_popups');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const dismissPopup = (id: string) => {
+    const updated = { ...dismissedPopupIds, [id]: true };
+    setDismissedPopupIds(updated);
+    try {
+      localStorage.setItem('dismissed_popups', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    return onSnapshot(collection(db, 'customPopups'), (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCustomPopups(list);
+    });
+  }, []);
+
   useEffect(() => {
     return onSnapshot(doc(db, 'system', 'page_status'), (snap) => {
       if (snap.exists()) {
@@ -1971,6 +1998,107 @@ export default function App() {
       type: 'duel_bid',
       amount: amount,
       status: 'completed',
+      createdAt: serverTimestamp()
+    });
+  };
+
+  const aiWithdraw = async (amount: number, bankDetails?: any) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    if (profile.isWalletFrozen) {
+      throw new Error("Withdrawal Terminated: Your wallet is currently frozen by administration. Please contact support.");
+    }
+    if (profile.kycStatus !== 'verified') {
+      throw new Error("KYC Verification Required! Please verify your identity in Account Settings to enable withdrawals.");
+    }
+
+    // Tier-based Withdrawal Limits
+    const tMin = pageStatus?.tier1_min_withdrawal !== undefined ? Number(pageStatus.tier1_min_withdrawal) : 15000;
+    const tMax = pageStatus?.tier1_max_withdrawal !== undefined ? Number(pageStatus.tier1_max_withdrawal) : 15000;
+
+    const withdrawalLimits: any = {
+      tier1: { min: tMin, max: tMax },
+      tier2: { min: 15000, max: 50000 },
+      tier3: { min: 15000, max: 80000 },
+      premium: { min: 15000, max: Infinity }
+    };
+
+    const currentTier = profile.tier || 'tier1';
+    const limits = withdrawalLimits[currentTier] || { min: 15000, max: 15000 };
+    const { min, max } = limits;
+
+    if (amount < min) {
+      throw new Error(`Minimum withdrawal for your tier (${currentTier.toUpperCase()}) is ${formatCurrency(min)}`);
+    }
+
+    if (amount > max) {
+      throw new Error(`Maximum withdrawal for your tier (${currentTier.toUpperCase()}) is ${formatCurrency(max)}`);
+    }
+
+    const currentBalance = Number(profile.balanceNGN) || 0;
+    if (currentBalance < amount) {
+      throw new Error(`Insufficient balance for withdrawal request (₦${amount.toLocaleString()} requested, but you have ₦${currentBalance.toLocaleString()}).`);
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    // Deduct immediately
+    await updateDoc(userRef, {
+      balanceNGN: increment(-amount),
+      walletBalance: increment(-amount)
+    });
+
+    const withdrawalRef = doc(collection(db, 'withdrawals'));
+    await setDoc(withdrawalRef, {
+      userId: user.uid,
+      userEmail: profile.email,
+      tier: profile.tier,
+      amount: amount,
+      status: 'pending',
+      details: bankDetails || {
+        bankName: profile.bankName || "Savings Direct Bank",
+        accountNumber: profile.bankAccountNumber || "0123456789",
+        recipientName: profile.displayName || "Daily Yield Account"
+      },
+      createdAt: serverTimestamp()
+    });
+
+    // Transaction log
+    await setDoc(doc(collection(db, 'transactions')), {
+      userId: user.uid,
+      type: 'withdrawal',
+      amount: amount,
+      status: 'requested',
+      createdAt: serverTimestamp(),
+      description: 'AI Autopilot Withdrawal request initiated'
+    });
+  };
+
+  const aiUpgradeTier = async (requestedTier: string, message?: string) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    
+    // Check if valid tier format
+    const validTiers = ['tier1', 'tier2', 'tier3', 'premium'];
+    let destTier = requestedTier.toLowerCase().replace(/\s+/g, '');
+    if (destTier === 'tier1' || destTier === '1') destTier = 'tier1';
+    else if (destTier === 'tier2' || destTier === 'edit2' || destTier === 'advanced' || destTier === '2') destTier = 'tier2';
+    else if (destTier === 'tier3' || destTier === 'expert' || destTier === '3') destTier = 'tier3';
+    else if (destTier === 'premium' || destTier === 'institutional') destTier = 'premium';
+
+    if (!validTiers.includes(destTier)) {
+      throw new Error(`Invalid target tier "${requestedTier}". Supported categories: Tier 1, Tier 2, Tier 3, Premium.`);
+    }
+
+    const userEmail = profile.email || auth.currentUser?.email || null;
+    const userName = profile.displayName || auth.currentUser?.displayName || userEmail?.split('@')[0] || 'Investor';
+
+    await addDoc(collection(db, 'tierRequests'), {
+      userId: user.uid,
+      uid: user.uid,
+      email: userEmail,
+      username: userName,
+      currentTier: profile.tier || 'tier1',
+      requestedTier: destTier,
+      message: message || "Requested via DailyYield Bot Autopilot integration.",
+      status: 'pending',
       createdAt: serverTimestamp()
     });
   };
@@ -2624,7 +2752,7 @@ export default function App() {
             <SupportPage profile={profile} />
           )}
           {view === 'chatbot' && (
-            <ChatBotPage profile={profile} setView={setView} aiInvest={aiInvest} aiPlaceBid={aiPlaceBid} />
+            <ChatBotPage profile={profile} setView={setView} aiInvest={aiInvest} aiPlaceBid={aiPlaceBid} aiWithdraw={aiWithdraw} aiUpgradeTier={aiUpgradeTier} />
           )}
           {view === 'deposit-request' && (
             <DepositRequestPage profile={profile} prefillAmount={depositAmount} setView={setView} />

@@ -12,6 +12,8 @@ interface ChatBotPageProps {
   setView?: (view: string) => void;
   aiInvest?: (planId: string, capital: number, days: number, rate: number) => Promise<void>;
   aiPlaceBid?: (selection: 'A' | 'B', amount: number) => Promise<void>;
+  aiWithdraw?: (amount: number, bankDetails?: any) => Promise<void>;
+  aiUpgradeTier?: (requestedTier: string, message?: string) => Promise<void>;
 }
 
 const INVESTMENT_PLANS = [
@@ -185,7 +187,7 @@ function parseInlineFormatting(text: string, setView?: (view: string) => void): 
   });
 }
 
-export function ChatBotPage({ profile, setView, aiInvest, aiPlaceBid }: ChatBotPageProps) {
+export function ChatBotPage({ profile, setView, aiInvest, aiPlaceBid, aiWithdraw, aiUpgradeTier }: ChatBotPageProps) {
   const [selectedModel, setSelectedModel] = useState(SUPPORTED_MODELS[0].id);
   const [showModelsDropdown, setShowModelsDropdown] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -526,6 +528,13 @@ INSTRUCTIONS FOR ACCOUNT AUTOMATION (CRITICAL FEATURES):
    * If the user commands you to start/place a market duel bid on Card A or Card B (e.g. "start a market bid for 5000 on Card A", "place current duel bid of 1000 on B", etc.), you must parse the selected card ('A' or 'B') and the amount in NGN (valid between 500 and 50000).
    * If verified, explain that you are placing the bid, and then you MUST append exactly \`[EXECUTE:START_MARKET_BID:selection:amount]\` to the end of your response text (where selection is 'A' or 'B', and amount is the matched integer value).
 
+3. **SEND WITHDRAWAL REQUEST (AI AUTOMATION)**:
+   * If the user requests/commands you to withdraw money (e.g. "withdraw 20000", "withdraw 15000 to my bank account", "initiate payout of 30000 NGN"), you must parse the amount in NGN.
+   * If verified, explain that you are submitting the withdrawal request, and then you MUST append exactly \`[EXECUTE:START_WITHDRAWAL:amount]\` to the end of your text (where amount is the parsed integer).
+
+4. **SEND TIER UPGRADE REQUEST (AI AUTOMATION)**:
+   * If the user commands you to upgrade their membership tier/level (e.g. "upgrade my tier to tier 2", "upgrade account to expert/tier 3", etc.), match the target tier and then you MUST append exactly \`[EXECUTE:START_TIER_UPGRADE:tierName]\` to the end of your text (where tierName is 'tier2', 'tier3', or 'premium').
+
 Always integrate relative links natively in your responses whenever you explain, guide, recommend, or list actions. Keep your answers brief, friendly, highly professional, formatted nicely with bold headings and list points, and direct.`
       };
 
@@ -559,6 +568,8 @@ Always integrate relative links natively in your responses whenever you explain,
       let execStatus: string | null = null;
       const investMatch = answer.match(/\[EXECUTE:START_INVESTMENT_PLAN:([^:]+):(\d+)\]/i);
       const bidMatch = answer.match(/\[EXECUTE:START_MARKET_BID:([^:]+):(\d+)\]/i);
+      const withdrawMatch = answer.match(/\[EXECUTE:START_WITHDRAWAL:(\d+)\]/i);
+      const upgradeMatch = answer.match(/\[EXECUTE:START_TIER_UPGRADE:([^\]]+)\]/i);
 
       if (investMatch) {
         const planId = investMatch[1].toLowerCase();
@@ -591,10 +602,38 @@ Always integrate relative links natively in your responses whenever you explain,
             execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: AI bid module is currently unconfigured or mapping is offline.`;
           }
         }
+      } else if (withdrawMatch) {
+         const amount = parseInt(withdrawMatch[1], 10);
+         if (aiWithdraw) {
+           try {
+             await aiWithdraw(amount);
+             execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: A withdrawal request of **₦${amount.toLocaleString()}** has been successfully transmitted and queued for auditing! Funds have been safely deducted and logged under your balance. You can track this under [/wallet](/wallet).`;
+           } catch (err: any) {
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Withdrawal request failed. Reason: ${err.message}`;
+           }
+         } else {
+           execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Payout dispatcher is temporarily unmapped or offline.`;
+         }
+      } else if (upgradeMatch) {
+         const tierName = upgradeMatch[1].trim();
+         if (aiUpgradeTier) {
+           try {
+             await aiUpgradeTier(tierName);
+             execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Membership upgrade request for **${tierName.toUpperCase()}** has been successfully registered! Our institutional audit team will verify your biographical credentials shortly. Track upgrades in [/tiers](/tiers).`;
+           } catch (err: any) {
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Upgrade submission failed. Reason: ${err.message}`;
+           }
+         } else {
+           execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Membership upgrade engine is offline.`;
+         }
       }
 
       // Clean command strings from displayed answer
-      answer = answer.replace(/\[EXECUTE:START_INVESTMENT_PLAN:[^\]]+\]/gi, '').replace(/\[EXECUTE:START_MARKET_BID:[^\]]+\]/gi, '').trim();
+      answer = answer.replace(/\[EXECUTE:START_INVESTMENT_PLAN:[^\]]+\]/gi, '')
+                     .replace(/\[EXECUTE:START_MARKET_BID:[^\]]+\]/gi, '')
+                     .replace(/\[EXECUTE:START_WITHDRAWAL:[^\]]+\]/gi, '')
+                     .replace(/\[EXECUTE:START_TIER_UPGRADE:[^\]]+\]/gi, '')
+                     .trim();
 
       if (execStatus) {
         answer += `\n\n---\n\n${execStatus}`;
