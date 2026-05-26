@@ -230,6 +230,7 @@ service cloud.firestore {
     }
 
     // --- Public Content ---
+    match /customPopups/{id} { allow read: if true; allow write: if isAdmin(); }
     match /faqs/{id} { allow read: if true; allow write: if isAdmin(); }
     match /airdrops/{id} { 
       allow read: if true; 

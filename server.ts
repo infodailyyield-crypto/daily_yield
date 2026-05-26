@@ -443,30 +443,99 @@ async function startServer() {
     }
 
     // Default to an elegant free/cheap model, e.g. "google/gemini-2.5-flash"
-    const selectedModel = model || "google/gemini-2.5-flash";
+    const selectedModel = model || "google/gemini-2.1-flash";
+
+    const defaultFreeModels = [
+      "google/gemini-2.5-flash:free",
+      "google/gemini-2.5-flash-lite:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "meta-llama/llama-3-8b-instruct:free",
+      "meta-llama/llama-3.1-8b-instruct:free",
+      "deepseek/deepseek-chat:free",
+      "mistralai/mistral-7b-instruct:free",
+      "qwen/qwen-2.5-72b-instruct:free",
+      "qwen/qwen-2.5-7b-instruct:free",
+      "microsoft/phi-3-medium-128k-instruct:free",
+      "openchat/openchat-7b:free",
+      "nousresearch/hermes-3-llama-3-8b:free",
+      "gryphe/mythomax-l2-13b:free",
+      "google/gemini-2.5-flash-lite-preview-06-17:free",
+      "deepseek/deepseek-chat-v3-0324:free"
+    ];
+
+    let modelsToTry = selectedModel === "auto-free-router"
+      ? [...defaultFreeModels]
+      : [selectedModel, ...defaultFreeModels];
+
+    // Remove duplicates keeping the selected model as the first prioritized item
+    modelsToTry = [...new Set(modelsToTry)];
+
+    // Fetch dynamic list of free models from OpenRouter API to expand the available free engines
+    try {
+      const modelsRes = await axios.get("https://openrouter.ai/api/v1/models", {
+        headers: { "Authorization": `Bearer ${apiKey}` },
+        timeout: 4000
+      });
+      if (modelsRes.data && Array.isArray(modelsRes.data.data)) {
+        const apiFree = modelsRes.data.data
+          .filter((m: any) => {
+            const endsFree = m.id && typeof m.id === 'string' && m.id.endsWith(':free');
+            const priceFree = m.pricing && (parseFloat(m.pricing.prompt) === 0 && parseFloat(m.pricing.completion) === 0);
+            return endsFree || priceFree;
+          })
+          .map((m: any) => m.id);
+        
+        if (apiFree.length > 0) {
+          // Merge lists keeping our preferred ones first
+          modelsToTry = [...new Set([...modelsToTry, ...apiFree])];
+          console.log("[Auto Free Router] Dynamically retrieved and merged free models count:", apiFree.length);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[Auto Free Router] Dynamic list fetch failed, falling back to default list. Error:", err.message);
+    }
+
+    let lastError: any = null;
+    let successData: any = null;
 
     try {
-      const response = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          model: selectedModel,
-          messages: messages,
-          max_tokens: req.body.max_tokens || 1500
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": process.env.APP_URL || "https://ai.studio/build",
-            "X-Title": "Daily Yield AI Platform",
-          },
-          timeout: 45000, // 45 seconds timeout
+      for (const currentModel of modelsToTry) {
+        try {
+          console.log(`[Chatbot Completions] Attempting request with model: ${currentModel}`);
+          const attemptResponse = await axios.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {
+              model: currentModel,
+              messages: messages,
+              max_tokens: req.body.max_tokens || 1500
+            },
+            {
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+                "HTTP-Referer": process.env.APP_URL || "https://ai.studio/build",
+                "X-Title": "Daily Yield AI Platform",
+              },
+              timeout: 15000, // 15 seconds limit per model attempt so fallbacks stay fast
+            }
+          );
+          successData = attemptResponse.data;
+          console.log(`[Chatbot Completions] Success with model: ${currentModel}`);
+          break; // Successfully completed the request, stop trying fallbacks!
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[Chatbot Completions] Model attempt failed for ${currentModel}. Error details:`, err.response?.data || err.message);
+          // Just proceed till it responds correctly (applicable to all engines)
         }
-      );
+      }
 
-      res.json(response.data);
+      if (!successData) {
+        throw lastError || new Error("All fallback models in the sequence failed.");
+      }
+
+      res.json(successData);
     } catch (err: any) {
-      console.error("[OpenRouter Error]:", err.response?.data || err.message);
+      console.error("[OpenRouter Error - All Exhausted]:", err.response?.data || err.message);
       const status = err.response?.status || 500;
       const errorData = err.response?.data || { error: err.message };
       res.status(status).json({

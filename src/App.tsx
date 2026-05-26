@@ -1272,7 +1272,7 @@ const Sidebar = ({
   onClose: () => void; 
   currentView: View;
   setView: (v: View) => void;
-  pageStatus?: Record<string, boolean>;
+  pageStatus?: Record<string, any>;
 }) => {
   let menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -1340,23 +1340,33 @@ const Sidebar = ({
               </button>
             </div>
 
-            <nav className="space-y-4">
-              {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => { setView(item.id as View); onClose(); }}
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300",
-                    currentView === item.id 
-                      ? "bg-emerald-500 text-white" 
-                      : "hover:bg-white/5 text-white/50"
-                  )}
-                >
-                  <item.icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              ))}
-            </nav>
+             <nav className="space-y-2">
+               {menuItems.map((item) => (
+                 <button
+                   key={item.id}
+                   onClick={() => { setView(item.id as View); onClose(); }}
+                   className={cn(
+                     "w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300",
+                     currentView === item.id 
+                       ? "bg-emerald-500 text-white" 
+                       : "hover:bg-white/5 text-white/50"
+                   )}
+                 >
+                   <item.icon size={20} />
+                   <span className="font-medium text-sm">{item.label}</span>
+                   {pageStatus?.new_labels?.[item.id] === true && (
+                     <span className={cn(
+                       "ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded border animate-pulse tracking-wide",
+                       currentView === item.id
+                         ? "text-white bg-white/20 border-white/30"
+                         : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                     )}>
+                       NEW
+                     </span>
+                   )}
+                 </button>
+               ))}
+             </nav>
 
             <div className="mt-auto p-4 glass rounded-2xl">
               <div className="flex items-center gap-3">
@@ -1416,7 +1426,7 @@ export default function App() {
   const [settlingIds, setSettlingIds] = useState<Set<string>>(new Set());
   const [broadcast, setBroadcast] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [pageStatus, setPageStatus] = useState<Record<string, boolean>>({
+  const [pageStatus, setPageStatus] = useState<Record<string, any>>({
     dashboard: true,
     portfolio: true,
     gamehub: true,
@@ -2103,6 +2113,290 @@ export default function App() {
     });
   };
 
+  const aiSubmitKYC = async (info: { username: string; email: string; phone: string; address: string }) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    if (!info.username || !info.email || !info.phone || !info.address) {
+      throw new Error("Missing required info to complete KYC form (Please specify name, email, phone, and address).");
+    }
+
+    await setDoc(doc(collection(db, 'kycRequests'), profile.uid), {
+      uid: profile.uid,
+      username: info.username.trim(),
+      email: info.email.trim(),
+      phoneNumber: info.phone.trim(),
+      address: info.address.trim(),
+      status: 'pending',
+      submittedAt: serverTimestamp()
+    });
+
+    await updateDoc(doc(db, 'users', profile.uid), { kycStatus: 'pending' });
+  };
+
+  const aiTransferToPlay = async (amount: number) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    const val = Number(amount);
+    if (isNaN(val) || val <= 0) {
+      throw new Error("Specified transfer amount must be greater than zero.");
+    }
+    const mainBalance = Number(profile.balanceNGN) || 0;
+    if (mainBalance < val) {
+      throw new Error(`Insufficient funds in your Main wallet. (Required: ₦${val.toLocaleString()}, Available: ₦${mainBalance.toLocaleString()})`);
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const batch = writeBatch(db);
+    batch.update(userRef, {
+      balanceNGN: increment(-val),
+      walletBalance: increment(-val),
+      onePlayBalanceNGN: increment(val)
+    });
+    batch.set(doc(collection(db, 'onePlayTransactions')), {
+      userId: user.uid,
+      type: 'deposit_from_main',
+      amount: val,
+      createdAt: serverTimestamp()
+    });
+    await batch.commit();
+  };
+
+  const aiTransferFromPlay = async (amount: number) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    const val = Number(amount);
+    if (isNaN(val) || val <= 0) {
+      throw new Error("Specified transfer amount must be greater than zero.");
+    }
+    const onePlayBalance = Number(profile.onePlayBalanceNGN) || 0;
+    if (onePlayBalance < val) {
+      throw new Error(`Insufficient funds in your One Play wallet. (Required: ₦${val.toLocaleString()}, Available: ₦${onePlayBalance.toLocaleString()})`);
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const batch = writeBatch(db);
+    batch.update(userRef, {
+      balanceNGN: increment(val),
+      walletBalance: increment(val),
+      onePlayBalanceNGN: increment(-val)
+    });
+    batch.set(doc(collection(db, 'onePlayTransactions')), {
+      userId: user.uid,
+      type: 'withdraw_to_main',
+      amount: val,
+      createdAt: serverTimestamp()
+    });
+    await batch.commit();
+  };
+
+  const aiClaimAirdrop = async () => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    
+    // Check active airdrops in Firestore
+    const activeQuery = query(collection(db, 'airdrops'), where('status', '==', 'active'));
+    const snap = await getDocs(activeQuery);
+    if (snap.empty) {
+      throw new Error("There are currently no active Quantum Airdrops to claim.");
+    }
+
+    const claimableAirdrops = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as any);
+    
+    // Get already claimed airdrop IDs
+    const claimsQuery = collection(db, 'users', user.uid, 'airdropsClaimed');
+    const claimsSnap = await getDocs(claimsQuery);
+    const claimedIds = claimsSnap.docs.map(doc => doc.id);
+
+    // Filter to those not claimed yet
+    const notClaimed = claimableAirdrops.filter(ad => !claimedIds.includes(ad.id));
+    if (notClaimed.length === 0) {
+      throw new Error("You have already claimed all active Quantum Airdrops.");
+    }
+
+    // Claim the first eligible airdrop (or all of them)
+    let count = 0;
+    for (const airdrop of notClaimed) {
+      const claimRef = doc(db, 'users', user.uid, 'airdropsClaimed', airdrop.id);
+      const userRef = doc(db, 'users', user.uid);
+      const airdropRef = doc(db, 'airdrops', airdrop.id);
+      const txRef = doc(collection(db, 'transactions'));
+      
+      await setDoc(claimRef, { claimed: true, claimedAt: serverTimestamp(), amount: airdrop.amount, airdropName: airdrop.name });
+      await updateDoc(userRef, { 
+        balanceNGN: increment(airdrop.amount),
+        walletBalance: increment(airdrop.amount)
+      });
+      await updateDoc(airdropRef, { totalClaims: increment(1) });
+      await setDoc(txRef, { userId: user.uid, type: 'payout', amount: airdrop.amount, status: 'completed', description: `Airdrop - ${airdrop.name}`, createdAt: serverTimestamp() });
+      await setDoc(doc(collection(db, 'notifications')), { userId: user.uid, title: 'Airdrop Claimed! 🎁', message: `Claimed ${airdrop.name}`, type: 'success', createdAt: serverTimestamp() });
+      
+      // Trigger Push
+      await triggerPush(user.uid, 'Airdrop Claimed! 🎁', `You successfully claimed the ${airdrop.name} airdrop of ${formatCurrency(airdrop.amount)}.`, '/airdrop');
+      count++;
+    }
+
+    return count;
+  };
+
+  const aiPlayHubGame = async (gameId: string) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    if (profile.isWalletFrozen) {
+      throw new Error("Transaction Denied: Your wallet is frozen. You cannot play games at this time.");
+    }
+
+    const availableGames = [
+      { id: 'dice', title: 'Daily Dice', fee: 50, reward: 200 },
+      { id: 'spin', title: 'Lucky Spin', fee: 125, reward: 1000 },
+      { id: 'cards', title: 'High Yield Cards', fee: 250, reward: 1000 },
+      { id: 'flip', title: 'Naira Flip', fee: 25, reward: 45 },
+      { id: 'rush', title: 'Number Rush', fee: 75, reward: 300 },
+      { id: 'box', title: 'Lucky Box', fee: 100, reward: 1000 },
+      { id: 'tap', title: 'Quick Tap', fee: 38, reward: 125 },
+      { id: 'color', title: 'Color Match', fee: 63, reward: 375 },
+      { id: 'crash', title: 'Crash Point', fee: 125, reward: 1000 },
+      { id: 'scratch', title: 'Scratch Win', fee: 50, reward: 250 },
+      { id: 'hunt', title: 'Treasure Hunt', fee: 150, reward: 750 },
+      { id: 'timer', title: 'Timer Bet', fee: 88, reward: 163 },
+      { id: 'drop', title: 'Ball Drop', fee: 200, reward: 1000 },
+      { id: 'wheel', title: 'Fortune Wheel', fee: 50, reward: 500 },
+      { id: 'pick', title: 'Pick & Match', fee: 75, reward: 250 },
+      { id: 'rocket', title: 'Rocket Cash', fee: 100, reward: 1000 },
+      { id: 'lucky', title: 'Lucky Numbers', fee: 63, reward: 300 },
+      { id: 'chest', title: 'Chest Royale', fee: 125, reward: 1000 },
+    ];
+
+    const matchGame = availableGames.find(g => g.id === gameId);
+    if (!matchGame) {
+      throw new Error(`Game ID "${gameId}" is not a valid game in our hub.`);
+    }
+
+    if (pageStatus.game_locks && pageStatus.game_locks[gameId]) {
+      throw new Error(`The specified game module ('${matchGame.title}') is currently locked by central administration.`);
+    }
+
+    const currentBalance = Number(profile.balanceNGN) || 0;
+    if (currentBalance < matchGame.fee) {
+      throw new Error(`Insufficient balance in your Main wallet. Available: ₦${currentBalance.toLocaleString()} NGN, but this game requires a fee of ₦${matchGame.fee.toLocaleString()} NGN.`);
+    }
+
+    // Process payment
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      balanceNGN: increment(-matchGame.fee),
+      walletBalance: increment(-matchGame.fee),
+      totalGamesPlayed: increment(1)
+    });
+
+    await setDoc(doc(collection(db, 'transactions')), {
+      userId: user.uid,
+      type: 'game_fee',
+      amount: matchGame.fee,
+      status: 'completed',
+      createdAt: serverTimestamp()
+    });
+
+    // 40% probability of win
+    const won = Math.random() < 0.40;
+    let finalReward = 0;
+    
+    if (won) {
+      const minR = pageStatus.game_hub_min_reward || 100;
+      const maxR = pageStatus.game_hub_max_reward || 1000;
+      finalReward = Math.max(minR, Math.min(maxR, matchGame.reward));
+    }
+
+    let winMessage = `Your game round in ${matchGame.title} has completed. Unfortunately, you did not win this round. Better luck next spin!`;
+
+    if (won && finalReward > 0) {
+      winMessage = `Congratulations! You scored an Instant Win in ${matchGame.title} on autopilot and won ₦${finalReward.toLocaleString()} NGN!`;
+      await updateDoc(userRef, {
+        balanceNGN: increment(finalReward),
+        walletBalance: increment(finalReward),
+        totalProfitNGN: increment(finalReward)
+      });
+
+      await setDoc(doc(collection(db, 'transactions')), {
+        userId: user.uid,
+        type: 'game_win',
+        amount: finalReward,
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+
+      await setDoc(doc(collection(db, 'notifications')), {
+        userId: user.uid,
+        title: 'Instant Win! 🏆',
+        message: `You won ₦${finalReward.toLocaleString()} in ${matchGame.title} via DailyYield Bot Autopilot!`,
+        type: 'win',
+        createdAt: serverTimestamp()
+      });
+
+      try {
+        await fetch('/api/push/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            title: 'Instant Win! 🏆',
+            body: `You won ₦${finalReward.toLocaleString()} in ${matchGame.title} via DailyYield Bot Autopilot!`,
+            url: '/gamehub',
+            adminSecret: 'infodailyyield_admin_2024'
+          })
+        });
+      } catch (e) {
+        console.warn('Push trigger failed', e);
+      }
+    }
+
+    return { won, amount: finalReward, gameTitle: matchGame.title, fee: matchGame.fee, message: winMessage };
+  };
+
+  const aiPurchaseOnePlayTicket = async (amount: number) => {
+    if (!user || !profile) throw new Error("Please log in to your account.");
+    
+    if (!pageStatus?.one_play_enabled) {
+      throw new Error("One Play Mode is currently INACTIVE (OFF). Automatically purchasing ticket entries on autopilot is not possible because the ticket store and arenas are deactivated.");
+    }
+
+    const validAmounts = [100, 200, 500, 1000, 2000, 5000];
+    if (!validAmounts.includes(amount)) {
+      throw new Error(`Invalid ticket entry size: ₦${amount.toLocaleString()} NGN. Standard allowed ticket denominations for Daily Yield One Play are ₦100, ₦200, ₦500, ₦1000, ₦2000, and ₦5000.`);
+    }
+
+    const onePlayBalance = profile.onePlayBalanceNGN || 0;
+    if (onePlayBalance < amount) {
+      const needed = amount - onePlayBalance;
+      throw new Error(`Insufficient funds in your One Play wallet. You have ₦${onePlayBalance.toLocaleString()} NGN, but this ticket costs ₦${amount.toLocaleString()} NGN. You need an additional ₦${needed.toLocaleString()} NGN. Please transfer NGN from your Main Wallet to your One Play wallet first.`);
+    }
+
+    const batch = writeBatch(db);
+    
+    // Create new ticket
+    const ticketRef = doc(collection(db, 'onePlayTickets'));
+    batch.set(ticketRef, {
+      userId: user.uid,
+      userEmail: profile.email || 'anonymous',
+      userName: profile.displayName || 'Anonymous Profile',
+      amount,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // Deduct from One Play balance
+    const userRef = doc(db, 'users', user.uid);
+    batch.update(userRef, {
+      onePlayBalanceNGN: increment(-amount)
+    });
+
+    // Write One Play Transaction record
+    const txRef = doc(collection(db, 'onePlayTransactions'));
+    batch.set(txRef, {
+      userId: user.uid,
+      type: 'ticket_purchase',
+      amount,
+      createdAt: serverTimestamp()
+    });
+
+    await batch.commit();
+  };
+
   const deposit = async (amount: number) => {
     if (!user || !profile) return;
     const minD = pageStatus?.minDepositNGN !== undefined ? Number(pageStatus.minDepositNGN) : 300;
@@ -2563,6 +2857,93 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Dynamic Custom Pop-up Overlays for Live Users */}
+      <AnimatePresence>
+        {customPopups.filter(p => !dismissedPopupIds[p.id]).map((popup) => (
+          <motion.div 
+            key={popup.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              className="w-full max-w-3xl bg-[#0e0f1e] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_0_80px_rgba(16,185,129,0.15)] relative"
+            >
+              {/* Image Banner if enabled */}
+              {popup.photoUrl ? (
+                <div className="relative h-80 md:h-[26rem] lg:h-[30rem] w-full overflow-hidden border-b border-white/5 bg-black/40">
+                  <img 
+                    src={popup.photoUrl} 
+                    alt={popup.title} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0e0f1e] to-transparent" />
+                </div>
+              ) : (
+                <div className="p-8 pb-4">
+                  <div className="w-12 h-12 rounded-[1rem] bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-2">
+                    <Sparkles size={24} />
+                  </div>
+                </div>
+              )}
+
+              {/* Popup Content */}
+              <div className="p-8 pt-6 space-y-5">
+                <h3 className="text-3xl font-black text-white px-1 leading-tight tracking-wide">
+                  {popup.title}
+                </h3>
+                
+                <p className="text-base font-medium text-white/70 leading-relaxed px-1 whitespace-pre-wrap max-h-[22rem] overflow-y-auto custom-scrollbar">
+                  {popup.body}
+                </p>
+
+                {/* Footer buttons / actions */}
+                <div className="flex gap-4 pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => dismissPopup(popup.id)}
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer border border-white/5"
+                  >
+                    Close
+                  </button>
+
+                  {(popup.link || popup.btnText) && (
+                    <button
+                      onClick={() => {
+                        dismissPopup(popup.id);
+                        if (popup.link) {
+                          if (popup.link.startsWith('/')) {
+                            const routeName = popup.link.substring(1);
+                            setView(routeName as any);
+                          } else {
+                            window.open(popup.link, '_blank');
+                          }
+                        }
+                      }}
+                      className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                    >
+                      {popup.btnText || "View Details"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Absolute Close Option */}
+              <button
+                onClick={() => dismissPopup(popup.id)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/40 border border-white/10 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+
       {/* Daily Yield One Play: Professional Navigation Tabs Bar */}
       {pageStatus?.one_play_enabled && (
         <div className="max-w-[98%] mx-auto mb-8 px-2 animate-in slide-in-from-top-4 duration-300">
@@ -2752,7 +3133,21 @@ export default function App() {
             <SupportPage profile={profile} />
           )}
           {view === 'chatbot' && (
-            <ChatBotPage profile={profile} setView={setView} aiInvest={aiInvest} aiPlaceBid={aiPlaceBid} aiWithdraw={aiWithdraw} aiUpgradeTier={aiUpgradeTier} />
+            <ChatBotPage 
+              profile={profile} 
+              setView={setView} 
+              aiInvest={aiInvest} 
+              aiPlaceBid={aiPlaceBid} 
+              aiWithdraw={aiWithdraw} 
+              aiUpgradeTier={aiUpgradeTier} 
+              aiTransferToPlay={aiTransferToPlay}
+              aiTransferFromPlay={aiTransferFromPlay}
+              aiClaimAirdrop={aiClaimAirdrop}
+              aiSubmitKYC={aiSubmitKYC}
+              aiPlayHubGame={aiPlayHubGame}
+              aiPurchaseOnePlayTicket={aiPurchaseOnePlayTicket}
+              pageStatus={pageStatus}
+            />
           )}
           {view === 'deposit-request' && (
             <DepositRequestPage profile={profile} prefillAmount={depositAmount} setView={setView} />
@@ -4590,15 +4985,29 @@ function WalletView({ profile, userId, onDeposit, onWithdraw, pageStatus }: {
 }
 
 function Notifications({ userId }: { userId?: string }) {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [privateNotifs, setPrivateNotifs] = useState<any[]>([]);
+  const [globalNotifs, setGlobalNotifs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!userId) return;
-    const q = query(collection(db, 'notifications'), where('userId', '==', userId || ''), orderBy('createdAt', 'desc'), limit(25));
-    return onSnapshot(q, (snap) => {
-      setNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => handleFirestoreError(err, 'list', 'notifications'));
+    const qP = query(collection(db, 'notifications'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(25));
+    return onSnapshot(qP, (snap) => {
+      setPrivateNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => handleFirestoreError(err, 'list', 'notifications (private)'));
   }, [userId]);
+
+  useEffect(() => {
+    const qG = query(collection(db, 'notifications'), where('userId', '==', 'all'), orderBy('createdAt', 'desc'), limit(25));
+    return onSnapshot(qG, (snap) => {
+      setGlobalNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => handleFirestoreError(err, 'list', 'notifications (global)'));
+  }, []);
+
+  const notifications = [...privateNotifs, ...globalNotifs].sort((a, b) => {
+    const timeA = a.createdAt?.seconds || 0;
+    const timeB = b.createdAt?.seconds || 0;
+    return timeB - timeA;
+  }).slice(0, 25);
 
   return (
     <motion.div
@@ -4624,17 +5033,31 @@ function Notifications({ userId }: { userId?: string }) {
           </div>
         ) : (
           notifications.map(n => (
-            <div key={n.id} className="glass p-8 rounded-[2.2rem] flex gap-8 border border-white/5 hover:bg-white/5 transition-all group">
+            <div key={n.id} className="glass p-8 rounded-[2.2rem] flex flex-col md:flex-row gap-8 border border-white/5 hover:bg-white/5 transition-all group">
                <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl bg-emerald-500/10 text-emerald-400">
                  {n.type === 'win' ? <Trophy size={32} /> : <Bell size={32} />}
                </div>
-               <div className="flex-1">
-                 <div className="flex justify-between items-start mb-2">
-                   <h4 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors">{n.title || 'Notification'}</h4>
-                   <p className="text-[10px] text-white/20 font-black font-mono">{(n.createdAt as Timestamp)?.toDate()?.toLocaleDateString() || 'Recent'}</p>
+               <div className="flex-1 space-y-4">
+                 <div>
+                   <div className="flex justify-between items-start mb-2">
+                     <h4 className="font-black text-xl text-white group-hover:text-emerald-400 transition-colors">{n.title || 'Notification'}</h4>
+                     <p className="text-[10px] text-white/20 font-black font-mono">{(n.createdAt as Timestamp)?.toDate()?.toLocaleDateString() || 'Recent'}</p>
+                   </div>
+                   <p className="text-white/60 text-base leading-relaxed whitespace-pre-wrap">{n.message}</p>
                  </div>
-                 <p className="text-white/60 text-base leading-relaxed mb-4">{n.message}</p>
-                 <div className="flex items-center gap-2">
+
+                 {n.photoUrl && (
+                   <div className="max-w-xl rounded-2xl overflow-hidden border border-white/10 bg-black/40">
+                     <img 
+                       src={n.photoUrl} 
+                       alt={n.title || 'Notification Banner'} 
+                       className="w-full h-auto max-h-96 object-cover"
+                       referrerPolicy="no-referrer"
+                     />
+                   </div>
+                 )}
+
+                 <div className="flex items-center gap-2 pt-1">
                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
                    <p className="text-[10px] font-black uppercase text-white/40 tracking-widest">{(n.type || 'system')} Event</p>
                  </div>
@@ -6610,6 +7033,42 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
   const [localTier1Min, setLocalTier1Min] = useState('15000');
   const [localTier1Max, setLocalTier1Max] = useState('15000');
 
+  // Custom Popup Form & Data states
+  const [customPopups, setCustomPopups] = useState<any[]>([]);
+  const [newPopupTitle, setNewPopupTitle] = useState('');
+  const [newPopupBody, setNewPopupBody] = useState('');
+  const [newPopupPhotoUrl, setNewPopupPhotoUrl] = useState('');
+  const [newPopupLink, setNewPopupLink] = useState('');
+  const [newPopupBtnText, setNewPopupBtnText] = useState('View Details');
+  const [isPopupImageUploading, setIsPopupImageUploading] = useState(false);
+
+  const handlePopupImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsPopupImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'dailyyield');
+      formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkc6byrwm');
+
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkc6byrwm'}/image/upload`,
+        formData
+      );
+
+      const imageUrl = response.data.secure_url;
+      setNewPopupPhotoUrl(imageUrl);
+      alert("Image uploaded to Cloudinary successfully!");
+    } catch (err) {
+      console.error("Popup image upload failed", err);
+      alert("Image upload failed. Please try again.");
+    } finally {
+      setIsPopupImageUploading(false);
+    }
+  };
+
   useEffect(() => {
     if (pageStatus?.minDepositNGN !== undefined) {
       setLocalMinDeposit(String(pageStatus.minDepositNGN));
@@ -6879,6 +7338,11 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
       setOnePlayCodeUsages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.error("Error subscribing to One Play Code Usages:", err));
 
+    // Listen to custom popups
+    const unsubCustomPopups = onSnapshot(collection(db, 'customPopups'), (snap) => {
+      setCustomPopups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.error("Error subscribing to Custom Popups:", err));
+
     return () => {
       unsubUsers();
       unsubKyc();
@@ -6896,6 +7360,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
       unsubOnePlayWinners();
       unsubOnePlayCodes();
       unsubOnePlayCodeUsages();
+      unsubCustomPopups();
     };
   }, []);
 
@@ -7097,6 +7562,15 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
     
     // Trigger Push Broadcast
     await broadcastPush('New Platform Update! 📢', broadcastMessage, '/dashboard');
+
+    // Distribute to all users via Notifications page
+    await addDoc(collection(db, 'notifications'), {
+      userId: 'all',
+      title: 'Global Announcement 📢',
+      message: broadcastMessage,
+      type: broadcastType || 'info',
+      createdAt: serverTimestamp()
+    });
     
     setBroadcastMessage('');
     alert("Broadcast Sent!");
@@ -8786,6 +9260,73 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                      })}
                   </div>
 
+                  {/* NEW Label Management Subsection */}
+                   <div className="mt-12 border-t border-white/5 pt-12">
+                      <h4 className="text-xl font-black text-white px-2 mb-2 flex items-center gap-2">
+                         <span>🏷</span> Sidebar “NEW” Label Customization
+                      </h4>
+                      <p className="text-xs text-white/40 px-2 mt-1 mb-8 max-w-2xl leading-relaxed">
+                         Toggle the pulsing <strong>“NEW”</strong> label next to any sidebar navigation link. This visual indicator helps users spot updated features and fresh platforms immediately.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {[
+                           { id: 'dashboard', label: 'Dashboard' },
+                           { id: 'invest', label: 'Investment Plans' },
+                           { id: 'tiers', label: 'Membership Upgrade' },
+                           { id: 'portfolio', label: 'Portfolio' },
+                           { id: 'gamehub', label: 'Game Hub' },
+                           { id: 'marketduel', label: 'Market Duel' },
+                           { id: 'airdrop', label: 'Quantum Airdrops' },
+                           { id: 'wallet', label: 'Wallet' },
+                           { id: 'referral', label: 'Referral System' },
+                           { id: 'support', label: 'Live Chat' },
+                           { id: 'chatbot', label: 'DailyYield Bot' },
+                           { id: 'faq', label: 'FAQ & Knowledge' },
+                           { id: 'notifications', label: 'Notifications' },
+                           { id: 'account', label: 'Account' },
+                           { id: 'oneplay', label: 'Daily Yield One Play' },
+                         ].map((pg) => {
+                           const newLabelsObj = pageStatus?.new_labels || {};
+                           const hasLabel = newLabelsObj[pg.id] === true;
+
+                           return (
+                             <div key={`new-lbl-${pg.id}`} className="flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-3xl">
+                                <div>
+                                   <div className="flex items-center gap-2">
+                                      <p className="text-sm font-black text-white">{pg.label}</p>
+                                      {hasLabel && (
+                                         <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 animate-pulse">NEW</span>
+                                      )}
+                                   </div>
+                                   <p className="text-[10px] font-black uppercase text-white/20 tracking-widest">{pg.id}</p>
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    const nextLabels = { ...newLabelsObj, [pg.id]: !hasLabel };
+                                    try {
+                                      await setDoc(doc(db, 'system', 'page_status'), {
+                                        new_labels: nextLabels
+                                      }, { merge: true });
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-5 py-2.5 rounded-xl text-3xs font-black uppercase tracking-widest transition-all duration-300 border cursor-pointer border-dashed",
+                                    hasLabel 
+                                      ? "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 hover:border-red-500/50" 
+                                      : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50"
+                                  )}
+                                >
+                                  {hasLabel ? 'Remove' : 'Add Label'}
+                                </button>
+                             </div>
+                           );
+                         })}
+                      </div>
+                   </div>
+
                   {/* Global Overrides Security & Deactivation System */}
                   <div className="mt-12 pt-12 border-t border-white/5 space-y-8">
                      <h4 className="text-xl font-black text-white px-2 flex items-center gap-3 font-mono">
@@ -8958,6 +9499,205 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                               >
                                  {pageStatus?.firstDepositBonusEnabled !== false ? "🟢 BONUS ACTIVE" : "🔴 BONUS DEACTIVATED"}
                               </button>
+                           </div>
+                        </div>
+
+                        {/* 4. Custom Popups Board */}
+                        <div className="p-8 bg-black/40 border border-white/5 rounded-3xl space-y-6 md:col-span-2 mt-8">
+                           <div>
+                              <p className="text-lg font-black text-white px-2">Custom Modal Popups</p>
+                              <p className="text-xs text-white/40 mt-1 leading-relaxed px-2">
+                                Create instant modal alerts designed with highly customized layout, informative text, images, and quick links. Deleted popups will immediately stop showing for clients.
+                              </p>
+                           </div>
+
+                           <div className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-4">
+                              <p className="text-xs font-black uppercase text-emerald-400 tracking-wider">Create Custom Pop-Up</p>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-white/40 tracking-wider">Pop-up Title *</label>
+                                    <input 
+                                       type="text"
+                                       placeholder="e.g., Daily Special Offer!"
+                                       value={newPopupTitle}
+                                       onChange={(e) => setNewPopupTitle(e.target.value)}
+                                       className="w-full bg-white/5 border border-white/10 px-4 py-3 rounded-xl outline-none focus:border-emerald-500/50 text-white text-xs"
+                                    />
+                                 </div>
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-white/40 tracking-wider flex justify-between">
+                                       <span>Photo Image (Cloudinary)</span>
+                                       {newPopupPhotoUrl && (
+                                          <button 
+                                             type="button" 
+                                             onClick={() => setNewPopupPhotoUrl('')}
+                                             className="text-red-400 hover:text-red-300 normal-case font-bold cursor-pointer transition-all"
+                                          >
+                                             Remove Image
+                                          </button>
+                                       )}
+                                    </label>
+                                    <div className="flex gap-4 items-center">
+                                       {newPopupPhotoUrl ? (
+                                          <div className="w-16 h-12 rounded bg-black/40 overflow-hidden border border-white/10 shrink-0">
+                                             <img src={newPopupPhotoUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                          </div>
+                                       ) : (
+                                          <div className="w-16 h-12 rounded bg-white/5 border border-dashed border-white/10 flex items-center justify-center text-white/20 text-[10px] uppercase font-black shrink-0">
+                                             None
+                                          </div>
+                                       )}
+                                       <label className="flex-1 px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/15 rounded-xl flex items-center justify-center gap-2 text-white text-xs font-bold cursor-pointer transition-all">
+                                          <Upload size={14} className="text-emerald-400" />
+                                          {isPopupImageUploading ? "Uploading image..." : "Upload from Device"}
+                                          <input 
+                                             type="file" 
+                                             accept="image/*"
+                                             onChange={handlePopupImageUpload}
+                                             className="hidden" 
+                                             disabled={isPopupImageUploading}
+                                          />
+                                       </label>
+                                    </div>
+                                 </div>
+                                 <div className="space-y-1 md:col-span-2">
+                                    <label className="text-[10px] font-black uppercase text-white/40 tracking-wider">Description / Body Text *</label>
+                                    <textarea 
+                                       placeholder="Enter your detailed announcement text here. Markdown and line breaks are fully preserved."
+                                       rows={3}
+                                       value={newPopupBody}
+                                       onChange={(e) => setNewPopupBody(e.target.value)}
+                                       className="w-full bg-white/5 border border-white/10 px-4 py-3 rounded-xl outline-none focus:border-emerald-500/50 text-white text-xs custom-scrollbar resize-none font-sans"
+                                    />
+                                 </div>
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-white/40 tracking-wider">Redirect Link Action (Select Page)</label>
+                                    <select 
+                                       value={newPopupLink}
+                                       onChange={(e) => setNewPopupLink(e.target.value)}
+                                       className="w-full bg-[#0a0b12] border border-white/10 px-4 py-3 rounded-xl outline-none focus:border-emerald-500/50 text-white text-xs"
+                                    >
+                                       <option value="">No redirect (None)</option>
+                                       <option value="/dashboard">Dashboard</option>
+                                       <option value="/wallet">Wallet & Deposits</option>
+                                       <option value="/portfolio">Active Yield Portfolio</option>
+                                       <option value="/invest">Fixed Yield Plans</option>
+                                       <option value="/oneplay">OnePlay Gaming Hub</option>
+                                       <option value="/oneplay-code">OnePlay USSD / Promo Code Dialer</option>
+                                       <option value="/tiers">Membership Tiers & KYC</option>
+                                       <option value="/referral">Referral Center</option>
+                                       <option value="/airdrop">Quantum Airdrops Hub</option>
+                                       <option value="/support">Support Desk & Chat Tickets</option>
+                                       <option value="/faq">Frequently Asked Questions (FAQs)</option>
+                                       <option value="/account">Account Settings</option>
+                                       <option value="/chatbot">DailyYield Bot (AI Copilot)</option>
+                                    </select>
+                                 </div>
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-white/40 tracking-wider">Action Button Text</label>
+                                    <input 
+                                       type="text"
+                                       placeholder="e.g., View Details"
+                                       value={newPopupBtnText}
+                                       onChange={(e) => setNewPopupBtnText(e.target.value)}
+                                       className="w-full bg-white/5 border border-white/10 px-4 py-3 rounded-xl outline-none focus:border-emerald-500/50 text-white text-xs"
+                                    />
+                                 </div>
+                              </div>
+
+                              <div className="flex justify-end pt-2">
+                                 <button
+                                    onClick={async () => {
+                                       if (!newPopupTitle.trim() || !newPopupBody.trim()) {
+                                          alert("Title and Body Text are required to dispatch a popup.");
+                                          return;
+                                       }
+                                       try {
+                                          await addDoc(collection(db, 'customPopups'), {
+                                             title: newPopupTitle.trim(),
+                                             body: newPopupBody.trim(),
+                                             photoUrl: newPopupPhotoUrl.trim(),
+                                             link: newPopupLink.trim(),
+                                             btnText: newPopupBtnText.trim() || "View Details",
+                                             createdAt: serverTimestamp()
+                                          });
+                                          await addDoc(collection(db, 'notifications'), {
+                                             userId: 'all',
+                                             title: newPopupTitle.trim(),
+                                             message: newPopupBody.trim(),
+                                             photoUrl: newPopupPhotoUrl.trim(),
+                                             type: 'alert',
+                                             createdAt: serverTimestamp()
+                                          });
+                                          setNewPopupTitle('');
+                                          setNewPopupBody('');
+                                          setNewPopupPhotoUrl('');
+                                          setNewPopupLink('');
+                                          setNewPopupBtnText('View Details');
+                                          alert("Custom Pop-up published successfully!");
+                                       } catch (e: any) {
+                                          alert(`Deployment Error: ${e.message}`);
+                                       }
+                                    }}
+                                    className="px-8 py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer font-mono"
+                                 >
+                                    Publish Pop-up To Live Users
+                                 </button>
+                              </div>
+                           </div>
+
+                           <div className="space-y-3 pt-4">
+                              <p className="text-xs font-black uppercase text-white/40 tracking-wider">Active Popups ({customPopups.length})</p>
+                              {customPopups.length > 0 ? (
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {customPopups.map((popup) => (
+                                       <div key={popup.id} className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col justify-between gap-4">
+                                          <div className="space-y-2">
+                                             {popup.photoUrl && (
+                                                <img 
+                                                   src={popup.photoUrl} 
+                                                   alt="Popup preview" 
+                                                   className="w-full h-32 object-cover rounded-xl border border-white/5" 
+                                                   referrerPolicy="no-referrer"
+                                                />
+                                             )}
+                                             <div>
+                                                <h5 className="text-sm font-black text-white">{popup.title}</h5>
+                                                <p className="text-xs text-white/60 line-clamp-3 mt-1 leading-relaxed whitespace-pre-wrap">{popup.body}</p>
+                                             </div>
+                                             {(popup.link || popup.btnText) && (
+                                                <div className="flex flex-wrap gap-2 text-[10px] font-mono mt-1 text-emerald-400">
+                                                   <span>Action: {popup.btnText}</span>
+                                                   {popup.link && <span className="opacity-50">({popup.link})</span>}
+                                                </div>
+                                             )}
+                                          </div>
+                                          <div className="flex justify-end">
+                                             <button
+                                                onClick={async () => {
+                                                   if (confirm("Are you sure you want to permanently delete this pop-up? Users will immediately stop seeing it.")) {
+                                                      try {
+                                                         await deleteDoc(doc(db, 'customPopups', popup.id));
+                                                         alert("Pop-up successfully retired.");
+                                                      } catch (e: any) {
+                                                         alert(`Retirement failure: ${e.message}`);
+                                                      }
+                                                   }
+                                                }}
+                                                className="px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white border border-red-500/20 text-red-400 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                                             >
+                                                Delete Pop-up
+                                             </button>
+                                          </div>
+                                       </div>
+                                    ))}
+                                 </div>
+                              ) : (
+                                 <div className="text-center py-10 opacity-30 bg-white/[0.01] rounded-2xl border border-dashed border-white/10">
+                                    <p className="text-xs font-bold">No active pop-ups found. Create your first message above.</p>
+                                 </div>
+                              )}
                            </div>
                         </div>
                      </div>
