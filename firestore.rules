@@ -216,8 +216,8 @@ service cloud.firestore {
 
     // --- Notifications ---
     match /notifications/{id} {
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'all');
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == 'all');
       allow create: if isSignedIn() && (incoming().userId == request.auth.uid || isBonusForReferrer(incoming().userId));
       allow read, write: if isAdmin();
     }
@@ -230,6 +230,7 @@ service cloud.firestore {
     }
 
     // --- Public Content ---
+    match /landingFeatures/{id} { allow read: if true; allow write: if isAdmin(); }
     match /customPopups/{id} { allow read: if true; allow write: if isAdmin(); }
     match /faqs/{id} { allow read: if true; allow write: if isAdmin(); }
     match /airdrops/{id} { 

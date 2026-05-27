@@ -570,9 +570,10 @@ INSTRUCTIONS FOR ACCOUNT AUTOMATION (CRITICAL FEATURES):
 
 3. **SEND WITHDRAWAL REQUEST (AI AUTOMATION)**:
    * If the user requests/commands you to withdraw money (e.g. "withdraw 20000", "withdraw 15000 to my bank account", "initiate payout of 30000 NGN"), you must parse the amount in NGN.
-   * Check if the user has provided specific bank details (e.g., Bank Name, Account Number, Recipient Beneficiary Name, and optionally Phone number) inside his message.
-   * If specific bank credentials are provided, explain that you are submitting the withdrawal, and you MUST append exactly \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName:phone]\` or \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName]\` to the end of your text (without the trailing phone if omitted).
-   * If no specific credentials are given, append exactly \`[EXECUTE:START_WITHDRAWAL:amount]\`.
+   * Check if the user has provided specific bank details (e.g., Bank Name, Account Number, Recipient Beneficiary Name, and optionally Phone number) inside their message. 
+   * If the user requests you to fill in the client registry name field, or if they omit the recipient name but prompt you to automate/execute the request, you MUST pull and fill in their registered Display Name ("${profile?.displayName || 'Client'}") as the Recipient Beneficiary Name (the client registry name field).
+   * For other missing bank fields when prompted, you may also pull and auto-fill from their profile: Bank Name ("${profile?.bankName || 'Savings Direct Bank'}"), Account Number ("${profile?.bankAccountNumber || '0123456789'}").
+   * Explain that you are submitting the withdrawal, and you MUST append exactly \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName:phone]\` or \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName]\` to the end of your text (without the trailing phone if omitted). Only use the simple \`[EXECUTE:START_WITHDRAWAL:amount]\` if no bank name or account number can be retrieved or inferred.
 
 4. **SEND TIER UPGRADE REQUEST (AI AUTOMATION)**:
    * If the user commands you to upgrade their membership tier/level (e.g. "upgrade my tier to tier 2", "upgrade account to expert/tier 3", etc.), match the target tier ('tier2', 'tier3', or 'premium').
@@ -615,23 +616,45 @@ Always integrate relative links natively in your responses whenever you explain,
 
       const apiMessages = [systemInstruction, ...contextMessages];
 
-      const response = await fetch('/api/chatbot/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: apiMessages,
-          model: selectedModel,
-          max_tokens: 1200
-        })
-      });
+      let attempts = 0;
+      const maxAttempts = 5;
+      let success = false;
+      let responseData: any = null;
 
-      if (!response.ok) {
-        const errDetails = await response.json();
-        throw new Error(errDetails.error || errDetails.details || "Failed request.");
+      while (attempts < maxAttempts && !success) {
+        try {
+          attempts++;
+          const response = await fetch('/api/chatbot/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: apiMessages,
+              model: selectedModel,
+              max_tokens: 1200
+            })
+          });
+
+          if (!response.ok) {
+            const errDetails = await response.json().catch(() => ({}));
+            const errMsg = typeof errDetails.error === 'object'
+              ? (errDetails.error?.message || errDetails.error?.error || JSON.stringify(errDetails.error))
+              : (errDetails.error || errDetails.details || "Failed request.");
+            throw new Error(errMsg);
+          }
+
+          responseData = await response.json();
+          success = true;
+        } catch (err: any) {
+          console.warn(`[DailyYield Bot Call] Attempt ${attempts} of ${maxAttempts} failed:`, err.message || err);
+          if (attempts >= maxAttempts) {
+            throw new Error("Error connecting to the model, please try again");
+          }
+          // Delay of 1.5 seconds before retrying
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
 
-      const data = await response.json();
-      let answer = data.choices?.[0]?.message?.content || "I am currently processing your inquiry. Please try again.";
+      let answer = responseData?.choices?.[0]?.message?.content || "I am currently processing your inquiry. Please try again.";
 
       // Check for automation executions
       let execStatus: string | null = null;
@@ -847,8 +870,8 @@ Biographical verification status is now queued as *PENDING* under [/tiers](/tier
       saveHistory(finalMessages);
 
     } catch (err: any) {
-      console.error("OpenRouter Bot call failed:", err);
-      setErrorStatus(err.message || "Failed to communicate with the neural model server.");
+      console.error("OpenRouter Bot call failed after retries:", err);
+      setErrorStatus("Error connecting to the model, please try again");
     } finally {
       setIsTyping(false);
     }
@@ -1158,11 +1181,11 @@ Biographical verification status is now queued as *PENDING* under [/tiers](/tier
             )}
 
             {errorStatus && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-start gap-2.5 text-xs animate-pulse">
+              <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-start gap-2.5 text-xs">
                 <AlertCircle size={16} className="shrink-0 text-red-400 mt-0.5" />
                 <div>
-                  <p className="font-extrabold text-sm">Model API Communication Fault</p>
-                  <p className="opacity-80 mt-1">{errorStatus}</p>
+                  <p className="font-extrabold text-sm uppercase tracking-wider">Connection Failure</p>
+                  <p className="opacity-90 mt-1">{errorStatus}</p>
                 </div>
               </div>
             )}

@@ -1160,6 +1160,724 @@ const LandingPage = ({ onGetStarted }: { onGetStarted: () => void }) => {
   );
 };
 
+const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) => {
+  const [showDocs, setShowDocs] = useState(false);
+  const [docsTab, setDocsTab] = useState<'docs' | 'privacy' | 'terms' | 'support'>('docs');
+  const [chatExpanded, setChatExpanded] = useState(true);
+  const [landingFeatures, setLandingFeatures] = useState<any[]>([]);
+  const [calcAmount, setCalcAmount] = useState<number>(25000);
+  const [calcTerms, setCalcTerms] = useState<number>(7);
+  const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    return onSnapshot(
+      query(collection(db, 'landingFeatures'), orderBy('createdAt', 'desc')),
+      (snap) => {
+        setLandingFeatures(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      },
+      (err) => console.error("Error sync minimalist features:", err)
+    );
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#07080d] text-white selection:bg-emerald-500/30 overflow-x-hidden relative font-sans">
+      {/* Top Fixed Market Ticker */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-black/85 backdrop-blur-md border-b border-white/5 h-10 flex items-center overflow-hidden">
+        <div className="animate-marquee whitespace-nowrap flex items-center gap-12 text-[10px] font-mono tracking-[0.2em] text-white/50">
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> STARTER 1: 50% PROFIT</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> ELITE 2: 50% PROFIT</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> IMMORTAL: 50% PROFIT</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> CELESTIAL: 50% PROFIT</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> PAYSTACK GATEWAY: ONLINE</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> INSTANT SETTLEMENTS ACTIVE</span>
+          <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> FIXED 50% YIELD ON ALL PLANS</span>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="fixed top-10 left-0 right-0 z-50 p-6 flex justify-between items-center max-w-7xl mx-auto bg-[#07080d]/80 backdrop-blur-md border-b border-white/[0.02]">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowDocs(true)}>
+          <img src={logo} alt="Daily Yield Logo" className="w-6 h-6 object-contain" />
+          <span className="text-lg font-black tracking-tight font-sans uppercase">
+            Daily <span className="text-emerald-500 font-mono">Yield</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={() => { setShowDocs(true); setDocsTab('docs'); }}
+            className="text-xs font-mono uppercase tracking-widest text-white/60 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+          >
+            Protocol Documentation
+          </button>
+          <button 
+            onClick={onGetStarted}
+            className="px-5 py-3 bg-white text-black text-[10px] font-black uppercase tracking-widest rounded transition-colors hover:bg-emerald-400 cursor-pointer"
+          >
+            ENTER APP
+          </button>
+        </div>
+      </nav>
+
+      {/* Floating Support Widgets */}
+      <div className="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {chatExpanded && (
+            <motion.a
+              href="https://wa.me/2349132469864"
+              target="_blank"
+              rel="noreferrer"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="px-5 py-3 bg-[#25D366] text-white rounded-xl flex items-center gap-3 shadow-lg border border-white/10 group backdrop-blur-md font-mono"
+            >
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] font-black uppercase tracking-wider opacity-70">24/7 Priority Desk</span>
+                <span className="text-xs font-black uppercase tracking-wide">SUPPORT AGENT</span>
+              </div>
+              <div className="w-10 h-10 bg-black/10 rounded-full flex items-center justify-center">
+                <MessageSquare size={18} />
+              </div>
+            </motion.a>
+          )}
+        </AnimatePresence>
+        <button 
+          onClick={() => setChatExpanded(!chatExpanded)}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 border bg-black/80 border-white/10 text-white hover:scale-105 cursor-pointer relative"
+        >
+          {chatExpanded ? <X size={18} /> : <MessageSquare size={20} />}
+        </button>
+      </div>
+
+      {/* Hero / Main Section */}
+      <main className="max-w-4xl mx-auto px-6 pt-44 pb-20 space-y-24">
+        {/* Intro Tagline */}
+        <section className="space-y-6 text-center">
+          <span className="text-[9px] font-mono tracking-[0.25em] text-emerald-400 bg-emerald-500/10 px-3.5 py-1.5 rounded uppercase">
+            Institutional Arbitrage Layer
+          </span>
+          <h1 className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-[1.05]">
+            Asset Yield Scaling <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-emerald-400">Institutional Protocol.</span>
+          </h1>
+          <p className="text-white/50 text-base max-w-xl mx-auto leading-relaxed">
+            Automating liquidity aggregation for institutional-grade financial portfolios. No complex setups. No volatility shocks. Complete transparency.
+          </p>
+          <div className="pt-4">
+            <button 
+              onClick={onGetStarted}
+              className="px-10 py-5 bg-emerald-500 text-black font-black text-xs uppercase tracking-[0.15em] rounded shadow-lg shadow-emerald-500/10 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+            >
+              LAUNCH SEED MATRIX
+            </button>
+          </div>
+        </section>
+
+        {/* Dynamic & Upcoming Features Section */}
+        {landingFeatures.length > 0 && (
+          <section className="space-y-10 pt-10 border-t border-white/5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline gap-4">
+              <div>
+                <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">PROTOCOL UPGRADES</span>
+                <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Upcoming & New Features</h2>
+              </div>
+              <span className="text-[10px] font-mono text-white/30 tracking-widest uppercase">{landingFeatures.length} Highlight{landingFeatures.length > 1 ? 's' : ''} Active</span>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {landingFeatures.map((feat) => (
+                <div key={feat.id} className="p-8 bg-white/[0.01] hover:bg-white/[0.03] border border-white/[0.04] hover:border-white/[0.08] rounded-2xl transition-all duration-300 flex flex-col gap-5 justify-between">
+                  <div className="space-y-4">
+                    {feat.imageUrl && (
+                      <div className="relative w-full h-44 rounded-xl overflow-hidden border border-white/5 bg-black/20">
+                        <img src={feat.imageUrl} alt={feat.title} className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" referrerPolicy="no-referrer" />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-black uppercase tracking-wide text-white leading-snug">{feat.title}</h3>
+                      <p className="text-xs text-white/50 leading-relaxed font-medium">{feat.description}</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono text-emerald-500 tracking-wider uppercase flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> SECURE INTEGRATED
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Pillars / Layout Segment with Photos */}
+        <section className="grid md:grid-cols-2 gap-8 pt-10 border-t border-white/5">
+          <div className="p-8 bg-[#07080d]/40 border border-white/5 rounded-2xl space-y-4">
+            <div className="relative w-full h-44 rounded-xl overflow-hidden border border-white/5 bg-black/20">
+              <img src="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=600&auto=format&fit=crop" alt="Yield Aggregator" className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
+            </div>
+            <div className="w-10 h-10 bg-white/5 rounded flex items-center justify-center text-emerald-400">
+              <Zap size={20} />
+            </div>
+            <h3 className="text-lg font-black uppercase tracking-wider">Yield Aggregator</h3>
+            <p className="text-xs text-white/40 leading-relaxed font-medium">
+              Daily Yield pools aggregate assets across micro-arbitrage sectors to source top consistent payout rates. All payouts are processed at a predefined ROI of 50%.
+            </p>
+          </div>
+
+          <div className="p-8 bg-[#07080d]/40 border border-white/5 rounded-2xl space-y-4">
+            <div className="relative w-full h-44 rounded-xl overflow-hidden border border-white/5 bg-black/20">
+              <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=600&auto=format&fit=crop" alt="Secured Operations" className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
+            </div>
+            <div className="w-10 h-10 bg-white/5 rounded flex items-center justify-center text-blue-400">
+              <Shield size={20} />
+            </div>
+            <h3 className="text-lg font-black uppercase tracking-wider">Secured Operations</h3>
+            <p className="text-xs text-white/40 leading-relaxed font-medium">
+              Integrated directly with verified regional gatekeepers like Paystack to provide absolute fiat transactional auditing and automated micro-arbitrages.
+            </p>
+          </div>
+        </section>
+
+        {/* Dynamic Platform Statistics Card */}
+        <section className="pt-10 border-t border-white/5 space-y-8">
+          <div className="text-center md:text-left">
+            <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">PROTOCOL STATUS</span>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Real-Time Core Metrics</h2>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: "Total Asset Flows", value: "₦1,420,950,230" },
+              { label: "Active Investors", value: "42,910" },
+              { label: "Autopilot Settled", value: "185,502" },
+              { label: "Liquidation Status", value: "100% SECURE" }
+            ].map((stat, i) => (
+              <div key={i} className="p-6 bg-white/[0.01] border border-white/[0.03] rounded-2xl text-center space-y-1">
+                <p className="text-[9px] font-mono uppercase tracking-widest text-white/30">{stat.label}</p>
+                <p className="text-base sm:text-lg font-black text-emerald-400 font-mono tracking-tight uppercase">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Interactive Yield Estimator Simulator */}
+        <section className="pt-10 border-t border-white/5 space-y-8">
+          <div className="text-center md:text-left">
+            <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">SIMULATOR LAYER</span>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Yield Return Calculator</h2>
+            <p className="text-xs text-white/50 mt-2 max-w-xl leading-relaxed">
+              Drag the sliders below to run institutional simulated yields based on your expected allocation capital. All plans yield a locked 50% profit.
+            </p>
+          </div>
+
+          <div className="p-8 bg-white/[0.01] border border-white/[0.04] rounded-3xl space-y-8">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Slider 1: Capital */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-baseline">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-white/40">Capital (NGN)</label>
+                  <span className="text-lg font-black text-white font-mono">₦{calcAmount.toLocaleString()}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="5000" 
+                  max="500000" 
+                  step="5000"
+                  value={calcAmount} 
+                  onChange={(e) => setCalcAmount(Number(e.target.value))}
+                  className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-white/5 rounded-full"
+                />
+                <div className="flex justify-between text-[9px] font-mono text-white/20 uppercase tracking-widest">
+                  <span>min ₦5,000</span>
+                  <span>max ₦500,000</span>
+                </div>
+              </div>
+
+              {/* Slider 2: Term length */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-baseline">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-white/40">Holding Term</label>
+                  <span className="text-lg font-black text-white font-mono">{calcTerms} Days</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="3" 
+                  max="30" 
+                  step="1"
+                  value={calcTerms} 
+                  onChange={(e) => setCalcTerms(Number(e.target.value))}
+                  className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-white/5 rounded-full"
+                />
+                <div className="flex justify-between text-[9px] font-mono text-white/20 uppercase tracking-widest">
+                  <span>3 Days minimum</span>
+                  <span>30 Days limit</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Output Block */}
+            <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl grid sm:grid-cols-3 gap-6 text-center sm:text-left">
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">Guaranteed Core ROI</p>
+                <p className="text-2xl font-black text-emerald-400 font-mono">50.0%</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">Accrued Profit Return</p>
+                <p className="text-2xl font-black text-white font-mono">₦{(calcAmount * 0.5).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">Total Payout at Settlement</p>
+                <p className="text-2xl font-black text-emerald-500 font-mono">₦{(calcAmount * 1.5).toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-2">
+              <button 
+                onClick={onGetStarted}
+                className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                PROVISION SIMULATED YIELD NOW
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Clean Interactive Frequently Asked Questions */}
+        <section className="pt-10 border-t border-white/5 space-y-8">
+          <div className="text-center md:text-left">
+            <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">KNOWLEDGE DESK</span>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Frequently Asked Questions</h2>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "What is the Daily Yield Security Protocol?",
+                a: "Daily Yield operates as an algorithmic protocol that partners with fiat gateways like Paystack to aggregate capital and execute fractional automated arbitrages. This enables the protocol to deliver returns of 50% across terms safely."
+              },
+              {
+                q: "How do I secure my KYC Account?",
+                a: "Navigate to Account Settings, submit standard identity documents (NIN, Drivers License, or Voters Card). Our institutional risk team approves KYC requests within 2 to 24 hours."
+              },
+              {
+                q: "Are there any manual fees on payouts?",
+                a: "No hidden ledger fees are deducted from available liquidity. Payout operations execute securely on standard schedules, with automatic settlement cycles returning yields instantly to your primary balance."
+              },
+              {
+                q: "What is the Daily Yield One Play mode?",
+                a: "One Play is our high-stakes draw ticket-matrix store. When active, users can buy Starter, Silver, and Gold tickets directly. Play events distribute provably fair rewards dynamically."
+              }
+            ].map((faq, index) => {
+              const isOpen = faqOpenIndex === index;
+              return (
+                <div key={index} className="border border-white/5 rounded-2xl overflow-hidden bg-white/[0.01] transition-all">
+                  <button
+                    onClick={() => setFaqOpenIndex(isOpen ? null : index)}
+                    className="w-full px-6 py-5 text-left flex justify-between items-center hover:bg-white/[0.02] cursor-pointer"
+                  >
+                    <span className="text-sm font-bold uppercase tracking-wide text-white">{faq.q}</span>
+                    <span className="text-emerald-400 font-mono">{isOpen ? "−" : "+"}</span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-6 pb-6 pt-2 text-xs text-white/50 leading-relaxed font-medium">
+                          {faq.a}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Operational Framework Summary */}
+        <section className="space-y-12 pt-10 border-t border-white/5">
+          <div className="text-center md:text-left">
+            <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">Operational Protocol</span>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Core System Standards</h2>
+          </div>
+          <div className="space-y-4">
+            {[
+              { 
+                title: "Asset Provisioning & Pools", 
+                desc: "User assets are consolidated into our core accounts, which helps minimize fee structures and gives access to high-tier transactional rates.",
+                icon: Coins
+              },
+              { 
+                title: "24-Hour Settlement Schedule", 
+                desc: "Protocol computations execute automated calculation cycles every 24 hours. Your terms finalize payouts directly to your primary balance.",
+                icon: Sparkles
+              },
+              { 
+                title: "Audit Gatekeeping via Paystack", 
+                desc: "All payments and allocations are audited and compliant with safe financial protocols, utilizing Paystack for all gateways.",
+                icon: Shield
+              }
+            ].map((step, idx) => (
+              <div key={idx} className="p-6 bg-white/[0.01] border border-white/[0.03] rounded-xl flex gap-6 items-start">
+                <div className="w-10 h-10 rounded bg-[#10b981]/10 flex items-center justify-center text-[#10b981] shrink-0">
+                  <step.icon size={18} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black uppercase tracking-tight text-white mb-1">{step.title}</h4>
+                  <p className="text-xs text-white/40 leading-relaxed font-medium">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Bottom Nav / Documentation */}
+        <section className="text-center pt-10 border-t border-white/5 space-y-4">
+          <p className="text-xs text-white/30 font-medium">
+            Read complete guidance, check limits, or contact institutional agents.
+          </p>
+          <div className="flex justify-center gap-6">
+            <button 
+              onClick={() => { setShowDocs(true); setDocsTab('docs'); }}
+              className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+            >
+              PROTOCOL PAPERS
+            </button>
+            <span className="text-white/10">•</span>
+            <button 
+              onClick={() => { setShowDocs(true); setDocsTab('support'); }}
+              className="text-[10px] font-mono uppercase tracking-widest text-white/50 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+            >
+              SUBMIT SUPPORT DESK
+            </button>
+          </div>
+        </section>
+      </main>
+
+      {/* Shared Institutional Overlay Modal (Same Content, Clean Flat layout) */}
+      <AnimatePresence>
+        {showDocs && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-[#07080d]/98 backdrop-blur-xl overflow-y-auto px-6 py-20"
+          >
+            <div className="max-w-4xl mx-auto relative space-y-12">
+              <div className="flex justify-between items-center pb-6 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <img src={logo} alt="Logo" className="w-8 h-8 rounded" />
+                  <span className="text-lg font-black uppercase tracking-tight font-mono">Daily Yield Institutional System</span>
+                </div>
+                <button 
+                  onClick={() => setShowDocs(false)}
+                  className="p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors border border-white/5 text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Resource Tabs Switcher */}
+              <div className="flex flex-wrap gap-2 pb-6 border-b border-white/5 relative z-10 font-mono">
+                <button 
+                  onClick={() => setDocsTab('docs')}
+                  className={`px-5 py-2.5 rounded font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                    docsTab === 'docs' 
+                      ? 'bg-emerald-500 text-black font-black' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  System Protocol
+                </button>
+                <button 
+                  onClick={() => setDocsTab('privacy')}
+                  className={`px-5 py-2.5 rounded font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                    docsTab === 'privacy' 
+                      ? 'bg-emerald-500 text-black font-black' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  Privacy Policy
+                </button>
+                <button 
+                  onClick={() => setDocsTab('terms')}
+                  className={`px-5 py-2.5 rounded font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                    docsTab === 'terms' 
+                      ? 'bg-emerald-400 text-black font-black' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  Terms of Use
+                </button>
+                <button 
+                  onClick={() => setDocsTab('support')}
+                  className={`px-5 py-2.5 rounded font-bold text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                    docsTab === 'support' 
+                      ? 'bg-emerald-500 text-black font-black' 
+                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  Support Center
+                </button>
+              </div>
+
+              <div className="space-y-16 pb-20">
+                {docsTab === 'docs' && (
+                  <>
+                    <section className="space-y-6">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded font-mono text-[9px] uppercase text-emerald-400">
+                        <Shield size={12} /> Certified Asset Management
+                      </div>
+                      <h2 className="text-3xl font-black uppercase tracking-tight">
+                        Diversified Liquidity <br />
+                        <span className="text-emerald-500 font-mono">Asset Management.</span>
+                      </h2>
+                      <div className="grid md:grid-cols-2 gap-6 pt-4">
+                        <div className="p-8 bg-white/[0.01] border border-white/5 rounded-xl space-y-4">
+                          <h3 className="text-md font-black uppercase tracking-wider flex items-center gap-2">
+                            <Zap size={16} className="text-emerald-400" /> Yield Strategy
+                          </h3>
+                          <p className="text-white/40 text-xs leading-relaxed font-medium">
+                            Daily Yield aggregates capital to provide liquidity for institutional-grade financial instruments. By utilizing micro-arbitrage across diversified asset classes, we deliver consistent daily payouts regardless of general market volatility.
+                          </p>
+                        </div>
+                        <div className="p-8 bg-white/[0.01] border border-white/5 rounded-xl space-y-4">
+                          <h3 className="text-md font-black uppercase tracking-wider flex items-center gap-2">
+                            <Infinity size={16} className="text-blue-400" /> Compound Plans
+                          </h3>
+                          <p className="text-white/40 text-xs leading-relaxed font-medium">
+                            From our basic entry plans to our exclusive high tiers, our core system achieves 50% returns. Fund dynamically via Paystack, run the specified days, and withdraw instantly.
+                          </p>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="space-y-8">
+                      <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2">
+                        <Boxes className="text-emerald-400" size={18} /> Operational Framework
+                      </h2>
+                      <div className="space-y-4">
+                        {[
+                          { 
+                            title: "Liquidity Provision & Pooling", 
+                            desc: "User capital is aggregated into our Institutional Liquidity Core, allowing our systems to access high-volume trading tiers with lower execution costs.",
+                            icon: Coins
+                          },
+                          { 
+                            title: "Automated Compounding", 
+                            desc: "Yields are calculated and distributed every 24 hours. Users can choose to auto-reinvest for exponential growth or maintain liquidity for immediate withdrawal.",
+                            icon: Sparkles
+                          },
+                          { 
+                            title: "Paystack Verification", 
+                            desc: "All incoming and outgoing transactions are processed via Paystack's secure gateway, ensuring local compliance and anti-fraud monitoring.",
+                            icon: Shield
+                          }
+                        ].map((step, idx) => (
+                          <div key={idx} className="flex gap-6 items-start p-6 rounded-xl bg-white/[0.01] border border-white/5">
+                            <div className="w-10 h-10 rounded bg-[#10b981]/10 flex items-center justify-center text-emerald-400 shrink-0">
+                              <step.icon size={18} />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black uppercase tracking-tight">{step.title}</h4>
+                              <p className="text-xs text-white/40 leading-relaxed font-medium mt-1">{step.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </>
+                )}
+
+                {docsTab === 'privacy' && (
+                  <div className="space-y-10">
+                    <section className="space-y-4">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded font-mono text-[9px] uppercase text-emerald-400">
+                        <Shield size={12} /> Security Policy Assurance
+                      </div>
+                      <h2 className="text-3xl font-black uppercase tracking-tight">
+                        Privacy & Data <br />
+                        <span className="text-emerald-500 font-mono">Protection Standard.</span>
+                      </h2>
+                      <p className="text-white/40 text-xs leading-relaxed font-medium">
+                        At Daily Yield, our commitment is to provide absolute clarity regarding user data storage and operations. Your privacy is protected with industry standard encryption.
+                      </p>
+                    </section>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="p-6 bg-[#07080d] border border-white/5 rounded-xl space-y-3">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-white">1. Data Collection</h3>
+                        <p className="text-white/40 text-xs leading-relaxed font-medium">
+                          We process only essential biographical credentials, credentials necessary for secure system logins, and financial routing data strictly governed by Paystack payment integration systems. No administrative access is ever shared with external handlers.
+                        </p>
+                      </div>
+
+                      <div className="p-6 bg-[#07080d] border border-white/5 rounded-xl space-y-3">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-white">2. Security & Encryption</h3>
+                        <p className="text-white/40 text-xs leading-relaxed font-medium">
+                          Operational telemetry and personal databases are encrypted using AES-256 protocols. Your unique password nodes are fully salted prior to secure cloud database storage matching our zero-touch protocols.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {docsTab === 'terms' && (
+                  <div className="space-y-10">
+                    <section className="space-y-4">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded font-mono text-[9px] uppercase text-emerald-400">
+                        <Files size={12} /> Legal Guidelines
+                      </div>
+                      <h2 className="text-3xl font-black uppercase tracking-tight">
+                        Operational Terms of <br />
+                        <span className="text-emerald-500 font-mono">Service Protocol.</span>
+                      </h2>
+                      <p className="text-white/40 text-xs leading-relaxed font-medium">
+                        Welcome to Daily Yield. By accessing this web framework and engaging with our pools, you officially acknowledge full adherence to the policies detailed below.
+                      </p>
+                    </section>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="p-6 bg-[#07080d] border border-white/5 rounded-xl space-y-3">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-white">1. Investment Terms</h3>
+                        <p className="text-white/40 text-xs leading-relaxed font-medium">
+                          All deposits and capital deployments on our specified investment plans are processed at a predefined ROI (50% term return). Principal capital remains systematically locked during the duration of the operational term before being released for withdrawal alongside earned yields.
+                        </p>
+                      </div>
+
+                      <div className="p-6 bg-[#07080d] border border-white/5 rounded-xl space-y-3">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-white">2. Settlement Regulations</h3>
+                        <p className="text-white/40 text-xs leading-relaxed font-medium">
+                          Payouts and withdrawal requests are systematically audited by platform administrators. Processing times are typically finalized within standard local gateway settlement terms (24-48 business hours). Any platform attempts to bypass, double-spend, or initiate rogue withdrawals are grounds for immediate account locks.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {docsTab === 'support' && (
+                  <div className="space-y-10">
+                    <section className="space-y-4">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded font-mono text-[9px] uppercase text-emerald-400">
+                        <HelpCircle size={12} /> Help Desk
+                      </div>
+                      <h2 className="text-3xl font-black uppercase tracking-tight">
+                        Connect with our <br />
+                        <span className="text-emerald-500 font-mono">Support network.</span>
+                      </h2>
+                    </section>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div className="md:col-span-1 space-y-4">
+                        <a href="mailto:infodailyyield@gmail.com" className="block p-6 bg-[#07080d] border border-white/5 rounded-xl hover:border-emerald-500/20 transition-all font-mono">
+                          <div className="w-10 h-10 bg-emerald-500/5 text-emerald-400 flex items-center justify-center rounded mb-3">
+                            <Mail size={16} />
+                          </div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">Email Terminal</h4>
+                          <p className="text-[10px] text-white/40 leading-relaxed font-mono font-semibold">infodailyyield@gmail.com</p>
+                        </a>
+
+                        <a href="https://wa.me/2349132469864" target="_blank" rel="noreferrer" className="block p-6 bg-[#07080d] border border-white/5 rounded-xl hover:border-emerald-500/20 transition-all font-mono">
+                          <div className="w-10 h-10 bg-[#25d366]/5 text-[#25d366] flex items-center justify-center rounded mb-3">
+                            <MessageSquare size={16} />
+                          </div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-white mb-1">WhatsApp Agent</h4>
+                          <p className="text-[10px] text-white/40 leading-relaxed font-mono font-semibold">+234 913 246 9864</p>
+                        </a>
+                      </div>
+
+                      <div className="md:col-span-2 p-8 bg-white/[0.01] border border-white/5 rounded-2xl relative">
+                        <h3 className="text-md font-black uppercase tracking-wider text-white mb-6">Submit Ticket Form</h3>
+                        
+                        <form onSubmit={async (e) => {
+                          e.preventDefault();
+                          const target = e.currentTarget;
+                          const name = (target.elements.namedItem('supp_name') as HTMLInputElement).value;
+                          const email = (target.elements.namedItem('supp_email') as HTMLInputElement).value;
+                          const msg = (target.elements.namedItem('supp_msg') as HTMLTextAreaElement).value;
+
+                          if (!name || !email || !msg) {
+                            alert("All fields are required.");
+                            return;
+                          }
+
+                          try {
+                            await addDoc(collection(db, 'supportMessages'), {
+                              name,
+                              email,
+                              message: msg,
+                              createdAt: serverTimestamp(),
+                              status: 'pending'
+                            });
+                            alert("Support message submitted successfully! An agent will respond directly to your email.");
+                            target.reset();
+                          } catch (err) {
+                            console.error("Support submission failed:", err);
+                            alert("Message delivery failed. Please retry.");
+                          }
+                        }} className="space-y-4 font-mono text-[10px]">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="uppercase text-white/40 tracking-wider">Your Name</label>
+                              <input 
+                                name="supp_name"
+                                required
+                                type="text" 
+                                placeholder="Name" 
+                                className="w-full bg-[#07080d] border border-white/10 px-4 py-3 rounded outline-none focus:border-emerald-500/50 text-white font-bold"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="uppercase text-white/40 tracking-wider">Your Email</label>
+                              <input 
+                                name="supp_email"
+                                required
+                                type="email" 
+                                placeholder="email@domain.com" 
+                                className="w-full bg-[#07080d] border border-white/10 px-4 py-3 rounded outline-none focus:border-emerald-500/50 text-white font-bold"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="uppercase text-white/40 tracking-wider">Message Details</label>
+                            <textarea 
+                              name="supp_msg"
+                              required
+                              rows={4}
+                              placeholder="Detail your inquiries here..." 
+                              className="w-full bg-[#07080d] border border-white/10 px-4 py-3 rounded outline-none focus:border-emerald-500/50 text-white font-bold"
+                            />
+                          </div>
+                          <button 
+                            type="submit" 
+                            className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase cursor-pointer rounded tracking-widest transition-all"
+                          >
+                            Transmit Ticket
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-center pt-6 border-t border-white/5">
+                <button 
+                  onClick={onGetStarted}
+                  className="px-8 py-4 bg-white text-black font-black rounded uppercase text-xs tracking-widest hover:bg-emerald-400 transition-colors cursor-pointer"
+                >
+                  Enter Platform Dashboard
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const LoginScreen = ({ onGoogleLogin, onEmailLogin, onEmailSignup }: { 
   onGoogleLogin: () => void;
   onEmailLogin: (e: string, p: string) => Promise<void>;
@@ -1426,6 +2144,7 @@ export default function App() {
   const [settlingIds, setSettlingIds] = useState<Set<string>>(new Set());
   const [broadcast, setBroadcast] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [isPageStatusLoaded, setIsPageStatusLoaded] = useState(false);
   const [pageStatus, setPageStatus] = useState<Record<string, any>>({
     dashboard: true,
     portfolio: true,
@@ -1475,6 +2194,7 @@ export default function App() {
       if (snap.exists()) {
         setPageStatus(snap.data() as Record<string, boolean>);
       }
+      setIsPageStatusLoaded(true);
     });
   }, []);
 
@@ -2017,6 +2737,18 @@ export default function App() {
     if (profile.isWalletFrozen) {
       throw new Error("Withdrawal Terminated: Your wallet is currently frozen by administration. Please contact support.");
     }
+    
+    // Check if there is already a pending withdrawal
+    const pendingQuery = query(
+      collection(db, 'withdrawals'),
+      where('userId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+    const pendingSnap = await getDocs(pendingQuery);
+    if (!pendingSnap.empty) {
+      throw new Error("You already have an active pending withdrawal request. Automatic request denied.");
+    }
+
     if (profile.kycStatus !== 'verified') {
       throw new Error("KYC Verification Required! Please verify your identity in Account Settings to enable withdrawals.");
     }
@@ -2511,7 +3243,7 @@ export default function App() {
     }
   };
 
-  if (loading) {
+  if (loading || !isPageStatusLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <motion.div 
@@ -2524,7 +3256,11 @@ export default function App() {
   }
 
   if (!user) {
-    if (isLanding) {
+    const showLanding = pageStatus?.landingPageEnabled !== false;
+    if (showLanding && isLanding) {
+      if (pageStatus?.useMinimalLanding) {
+        return <MinimalistLandingPage onGetStarted={() => setIsLanding(false)} />;
+      }
       return <LandingPage onGetStarted={() => setIsLanding(false)} />;
     }
     return (
@@ -6755,7 +7491,7 @@ async function testFirestoreConnection() {
   }
 }
 
-type AdminTab = 'users' | 'broadcast' | 'alerts' | 'withdrawals' | 'kyc' | 'tiers' | 'registry' | 'faq' | 'airdrop' | 'referrals' | 'system' | 'deposits' | 'referral_requests' | 'investments' | 'page_management' | 'market_duel' | 'wallet_security' | 'fees' | 'live-chat' | 'support-calls' | 'oneplay_admin';
+type AdminTab = 'users' | 'broadcast' | 'alerts' | 'withdrawals' | 'kyc' | 'tiers' | 'registry' | 'faq' | 'airdrop' | 'referrals' | 'system' | 'deposits' | 'referral_requests' | 'investments' | 'page_management' | 'market_duel' | 'wallet_security' | 'fees' | 'live-chat' | 'support-calls' | 'oneplay_admin' | 'landing_page';
 
 function DepositRequestPage({ profile, prefillAmount, setView }: { profile: UserProfile | null, prefillAmount: number, setView: (v: View) => void }) {
   const [amount, setAmount] = useState(prefillAmount || 0);
@@ -7041,6 +7777,40 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
   const [newPopupLink, setNewPopupLink] = useState('');
   const [newPopupBtnText, setNewPopupBtnText] = useState('View Details');
   const [isPopupImageUploading, setIsPopupImageUploading] = useState(false);
+
+  // Landing Page Feature Form & Data states
+  const [landingFeatures, setLandingFeatures] = useState<any[]>([]);
+  const [newFeatureTitle, setNewFeatureTitle] = useState('');
+  const [newFeatureDesc, setNewFeatureDesc] = useState('');
+  const [newFeaturePhotoUrl, setNewFeaturePhotoUrl] = useState('');
+  const [isFeatureUploading, setIsFeatureUploading] = useState(false);
+
+  const handleFeatureImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsFeatureUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'dailyyield');
+      formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkc6byrwm');
+
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkc6byrwm'}/image/upload`,
+        formData
+      );
+
+      const imageUrl = response.data.secure_url;
+      setNewFeaturePhotoUrl(imageUrl);
+      alert("Feature image uploaded to Cloudinary successfully!");
+    } catch (err) {
+      console.error("Feature image upload failed", err);
+      alert("Image upload failed. Please try again.");
+    } finally {
+      setIsFeatureUploading(false);
+    }
+  };
 
   const handlePopupImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -7343,6 +8113,11 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
       setCustomPopups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.error("Error subscribing to Custom Popups:", err));
 
+    // Listen to landing features list
+    const unsubLandingFeatures = onSnapshot(collection(db, 'landingFeatures'), (snap) => {
+      setLandingFeatures(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.error("Error subscribing to landingFeatures:", err));
+
     return () => {
       unsubUsers();
       unsubKyc();
@@ -7361,6 +8136,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
       unsubOnePlayCodes();
       unsubOnePlayCodeUsages();
       unsubCustomPopups();
+      unsubLandingFeatures();
     };
   }, []);
 
@@ -8345,6 +9121,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
             { id: 'support-calls', label: 'Voice Support Calls', icon: Phone },
             { id: 'fees', label: 'Charge Fees', icon: CreditCard },
             { id: 'oneplay_admin', label: 'Daily Yield One Play', icon: Coins },
+            { id: 'landing_page', label: 'Landing Page Manager', icon: LayoutDashboard },
           ].map((btn) => (
             <button
               key={btn.id}
@@ -9614,7 +10391,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                                           return;
                                        }
                                        try {
-                                          await addDoc(collection(db, 'customPopups'), {
+                                          const popupRef = await addDoc(collection(db, 'customPopups'), {
                                              title: newPopupTitle.trim(),
                                              body: newPopupBody.trim(),
                                              photoUrl: newPopupPhotoUrl.trim(),
@@ -9622,11 +10399,12 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                                              btnText: newPopupBtnText.trim() || "View Details",
                                              createdAt: serverTimestamp()
                                           });
-                                          await addDoc(collection(db, 'notifications'), {
+                                          await setDoc(doc(db, 'notifications', popupRef.id), {
                                              userId: 'all',
                                              title: newPopupTitle.trim(),
                                              message: newPopupBody.trim(),
                                              photoUrl: newPopupPhotoUrl.trim(),
+                                             popupId: popupRef.id,
                                              type: 'alert',
                                              createdAt: serverTimestamp()
                                           });
@@ -9676,9 +10454,19 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                                           <div className="flex justify-end">
                                              <button
                                                 onClick={async () => {
-                                                   if (confirm("Are you sure you want to permanently delete this pop-up? Users will immediately stop seeing it.")) {
+                                                   const deletePopupAlert = confirm("Are you sure you want to permanently delete this pop-up? Users will immediately stop seeing it.");
+                                                   if (deletePopupAlert) {
+                                                      const deleteNotification = confirm("Would you also like to delete this alert from all users' notification/history page?");
                                                       try {
                                                          await deleteDoc(doc(db, 'customPopups', popup.id));
+                                                         if (deleteNotification) {
+                                                            await deleteDoc(doc(db, 'notifications', popup.id));
+                                                            const q = query(collection(db, 'notifications'), where('popupId', '==', popup.id));
+                                                            const snap = await getDocs(q);
+                                                            for (const d of snap.docs) {
+                                                               await deleteDoc(d.ref);
+                                                            }
+                                                         }
                                                          alert("Pop-up successfully retired.");
                                                       } catch (e: any) {
                                                          alert(`Retirement failure: ${e.message}`);
@@ -11261,6 +12049,185 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                )}
             </div>
           )}
+
+          {activeTab === 'landing_page' && (
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Controls Header */}
+                <div className="grid md:grid-cols-2 gap-8">
+                   {/* Toggle Landing Page Enabled */}
+                   <div className="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden flex flex-col justify-between">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                      <div>
+                         <h3 className="text-xl font-black text-white flex items-center gap-2">
+                           <LayoutDashboard className="text-emerald-400" /> Landing Page Status
+                         </h3>
+                         <p className="text-white/40 text-xs leading-relaxed mt-2 animate-pulse">
+                           When disabled, standard users visiting the platform bypass the landing page entirely and redirect straight to the login card.
+                         </p>
+                      </div>
+                      <div className="mt-6 flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                         <span className="text-xs font-black uppercase tracking-wider text-white">Status: {pageStatus?.landingPageEnabled !== false ? "ENABLED" : "DISABLED"}</span>
+                         <button
+                           onClick={async () => {
+                             const current = pageStatus?.landingPageEnabled !== false;
+                             await updateDoc(doc(db, 'system', 'page_status'), { landingPageEnabled: !current });
+                             alert(`Landing Page is now ${!current ? 'ENABLED' : 'DISABLED'}`);
+                           }}
+                           className={cn(
+                             "px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer",
+                             pageStatus?.landingPageEnabled !== false 
+                               ? "bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white"
+                               : "bg-emerald-500 text-black shadow-lg hover:brightness-110"
+                           )}
+                         >
+                            {pageStatus?.landingPageEnabled !== false ? "DISABLE" : "ENABLE"}
+                         </button>
+                      </div>
+                   </div>
+
+                   {/* Toggle Minimalist Landing Page style */}
+                   <div className="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden flex flex-col justify-between">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                      <div>
+                         <h3 className="text-xl font-black text-white flex items-center gap-2">
+                           <Sparkles className="text-indigo-400" /> Landing Page Theme
+                         </h3>
+                         <p className="text-white/40 text-xs leading-relaxed mt-2">
+                           Switch between the original cinematic visual theme or the new clean minimalist visual layout.
+                         </p>
+                      </div>
+                      <div className="mt-6 flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                         <span className="text-xs font-black uppercase tracking-wider text-white">Style: {pageStatus?.useMinimalLanding ? "MINIMALIST" : "ORIGINAL CINEMATIC"}</span>
+                         <button
+                           onClick={async () => {
+                             const current = !!pageStatus?.useMinimalLanding;
+                             await updateDoc(doc(db, 'system', 'page_status'), { useMinimalLanding: !current });
+                             alert(`Theme switched to ${!current ? 'MINIMALIST' : 'ORIGINAL'}`);
+                           }}
+                           className="px-6 py-3 bg-white text-black hover:bg-emerald-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer shadow-md"
+                        >
+                            SWITCH STYLE
+                         </button>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Upcoming & New Features Manager */}
+                <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8">
+                   {/* Create New Feature Card */}
+                   <div className="glass p-10 rounded-[3rem] border border-white/5 relative">
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-8">Add Feature Highlight</h3>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newFeatureTitle || !newFeatureDesc) {
+                          alert("Title and Description are required.");
+                          return;
+                        }
+                        try {
+                          await addDoc(collection(db, 'landingFeatures'), {
+                            title: newFeatureTitle,
+                            description: newFeatureDesc,
+                            imageUrl: newFeaturePhotoUrl,
+                            createdAt: serverTimestamp()
+                          });
+                          setNewFeatureTitle('');
+                          setNewFeatureDesc('');
+                          setNewFeaturePhotoUrl('');
+                          alert("Feature highlighted successfully and is now active!");
+                        } catch (err) {
+                          console.error(err);
+                          alert("Failed to submit feature entry.");
+                        }
+                      }} className="space-y-6">
+                         <div className="space-y-2">
+                            <label className="text-[10px] uppercase font-black text-white/40 tracking-wider">Feature Title</label>
+                            <input
+                              required
+                              type="text"
+                              value={newFeatureTitle}
+                              onChange={e => setNewFeatureTitle(e.target.value)}
+                              placeholder="E.g., Liquidity Pool Auto-Compounding"
+                              className="w-full bg-black/40 border border-white/10 px-4 py-4 rounded-2xl outline-none focus:border-emerald-500 text-white text-xs font-semibold"
+                            />
+                         </div>
+
+                         <div className="space-y-2">
+                            <label className="text-[10px] uppercase font-black text-white/40 tracking-wider">Feature Description</label>
+                            <textarea
+                              required
+                              rows={4}
+                              value={newFeatureDesc}
+                              onChange={e => setNewFeatureDesc(e.target.value)}
+                              placeholder="Describe the details or benefit of this feature..."
+                              className="w-full bg-black/40 border border-white/10 px-4 py-4 rounded-2xl outline-none focus:border-emerald-500 text-white text-xs font-semibold"
+                            />
+                         </div>
+
+                         <div className="space-y-4">
+                            <label className="text-[10px] uppercase font-black text-white/40 tracking-wider block">Feature Image (Cloudinary Integration)</label>
+                            <div className="flex flex-col sm:flex-row gap-4 items-center">
+                               {newFeaturePhotoUrl && (
+                                  <img src={newFeaturePhotoUrl} alt="Feature Preview" className="w-16 h-16 rounded-xl object-cover border border-white/10" referrerPolicy="no-referrer" />
+                               )}
+                               <label className="flex-1 cursor-pointer group flex flex-col items-center justify-center p-6 bg-black/40 border-2 border-dashed border-white/10 hover:border-emerald-500/40 rounded-2xl transition-all">
+                                  <Upload size={24} className="text-white/40 group-hover:text-emerald-400 mb-2 transition-colors" />
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-white/60 group-hover:text-white transition-colors">
+                                     {isFeatureUploading ? "Uploading to Cloudinary..." : "Select Feature Photo"}
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFeatureImageUpload}
+                                    className="hidden"
+                                    disabled={isFeatureUploading}
+                                  />
+                               </label>
+                            </div>
+                         </div>
+
+                         <button
+                           type="submit"
+                           disabled={isFeatureUploading}
+                           className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-50"
+                         >
+                            Publish Dynamic Feature Highlight
+                         </button>
+                      </form>
+                   </div>
+
+                   {/* Active Features Section */}
+                   <div className="glass p-10 rounded-[3rem] border border-white/5 flex flex-col h-[550px]">
+                      <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-8">Registered Highlights ({landingFeatures.length})</h3>
+                      <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                         {landingFeatures.map(feat => (
+                            <div key={feat.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl flex gap-4 items-start relative group">
+                               {feat.imageUrl && (
+                                  <img src={feat.imageUrl} alt={feat.title} className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0" referrerPolicy="no-referrer" />
+                               )}
+                               <div className="flex-1">
+                                  <h4 className="text-sm font-black text-white uppercase tracking-wide leading-tight">{feat.title}</h4>
+                                  <p className="text-white/40 text-[11px] leading-relaxed mt-1 font-medium">{feat.description}</p>
+                               </div>
+                               <button
+                                 onClick={async () => {
+                                   if (!confirm("Are you sure you want to remove this highlight from the landing page?")) return;
+                                   await deleteDoc(doc(db, 'landingFeatures', feat.id));
+                                   alert("Feature highlight successfully deleted.");
+                                 }}
+                                 className="opacity-0 group-hover:opacity-100 p-2.5 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl transition-all cursor-pointer self-center"
+                               >
+                                  <Trash2 size={16} />
+                               </button>
+                            </div>
+                         ))}
+                         {landingFeatures.length === 0 && (
+                            <p className="py-20 text-center text-white/10 italic">No feature highlights have been added yet.</p>
+                         )}
+                      </div>
+                   </div>
+                </div>
+             </div>
+           )}
 
           {activeTab === 'airdrop' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
