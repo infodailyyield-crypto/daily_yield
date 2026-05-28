@@ -1180,7 +1180,104 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#07080d] text-white selection:bg-emerald-500/30 overflow-x-hidden relative font-sans">
+    <div className="min-h-screen bg-gradient-to-b from-[#0e111d] via-[#07080f] to-[#040507] text-white selection:bg-emerald-500/30 overflow-x-hidden relative font-sans">
+      {/* Dynamic High-End Animated Background Layer (No heavyweight or live feeds) */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        {/* Modern Cyber Tech Grid Backdrop */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:5rem_5rem]" />
+        
+        {/* Floating Premium Wallet, Money, and Daily Yield elements */}
+        <div className="absolute inset-0 z-0 select-none pointer-events-none">
+          {[
+            { Icon: Wallet, x: "8%", y: "15%", size: 34, delay: 0, duration: 24, label: "💳 wallet" },
+            { Icon: Coins, x: "88%", y: "12%", size: 30, delay: 2, duration: 28, label: "₦ yield" },
+            { Icon: TrendingUp, x: "75%", y: "38%", size: 36, delay: 4, duration: 32, label: "+50% roi" },
+            { Icon: CreditCard, x: "14%", y: "68%", size: 32, delay: 1, duration: 30, label: "💳 fund" },
+            { Icon: Coins, x: "48%", y: "85%", size: 26, delay: 5, duration: 26, label: "₦ growth" },
+            { Icon: Sparkles, x: "32%", y: "10%", size: 22, delay: 3, duration: 21, label: "✨ optimal" },
+            { Icon: Wallet, x: "92%", y: "75%", size: 36, delay: 6, duration: 27, label: "💳 assets" },
+            { Icon: TrendingUp, x: "4%", y: "45%", size: 34, delay: 7, duration: 33, label: "📈 payout" },
+            { Icon: Coins, x: "38%", y: "25%", size: 28, delay: 8, duration: 25, label: "₦ cash" },
+          ].map((item, idx) => {
+            const Icon = item.Icon;
+            return (
+              <motion.div
+                key={idx}
+                style={{ left: item.x, top: item.y }}
+                animate={{
+                  y: [0, -30, 15, 0],
+                  x: [0, 12, -12, 0],
+                  rotate: [0, 8, -8, 0],
+                  scale: [1, 1.05, 0.95, 1],
+                  opacity: [0.15, 0.35, 0.22, 0.15]
+                }}
+                transition={{
+                  duration: item.duration,
+                  delay: item.delay,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                className="absolute flex items-center gap-1.5 text-emerald-400 select-none pointer-events-none"
+              >
+                <div className="p-2 ml-1.5 rounded-xl bg-white/[0.02] border border-emerald-500/15 backdrop-blur-[1px] shadow-[0_8px_32px_rgba(16,185,129,0.04)]">
+                  <Icon size={item.size} className="text-emerald-400/40 drop-shadow-[0_0_8px_rgba(16,185,129,0.2)]" />
+                </div>
+                <span className="text-[8px] font-mono font-black text-emerald-400/50 tracking-widest uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/10">
+                  {item.label}
+                </span>
+              </motion.div>
+            );
+          })}
+        </div>
+        
+        {/* Slowly Traveling Glowing Nebula Orbs */}
+        <motion.div
+          animate={{
+            x: [0, 40, -20, 0],
+            y: [0, -60, 40, 0],
+            scale: [1, 1.12, 0.94, 1],
+          }}
+          transition={{
+            duration: 25,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="absolute -top-[15%] -left-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tr from-emerald-500/25 via-emerald-400/12 to-transparent blur-[120px]"
+        />
+        
+        <motion.div
+          animate={{
+            x: [0, -45, 30, 0],
+            y: [0, 40, -50, 0],
+            scale: [1, 0.9, 1.1, 1],
+          }}
+          transition={{
+            duration: 32,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1.5,
+          }}
+          className="absolute -bottom-[15%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-blue-500/20 via-teal-500/10 to-transparent blur-[125px]"
+        />
+
+        <motion.div
+          animate={{
+            x: [50, -50, 50],
+            y: [-30, 90, -30],
+            scale: [1, 1.15, 1],
+          }}
+          transition={{
+            duration: 38,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="absolute top-[35%] left-[15%] w-[320px] h-[320px] rounded-full bg-emerald-500/[0.08] blur-[100px]"
+        />
+
+        {/* Diagonal Soft Light Scan Line */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/[0.03] to-transparent bg-[length:200%_100%] animate-[marquee_20s_linear_infinite]" />
+      </div>
+
       {/* Top Fixed Market Ticker */}
       <div className="fixed top-0 left-0 right-0 z-[60] bg-black/85 backdrop-blur-md border-b border-white/5 h-10 flex items-center overflow-hidden">
         <div className="animate-marquee whitespace-nowrap flex items-center gap-12 text-[10px] font-mono tracking-[0.2em] text-white/50">
@@ -1271,6 +1368,40 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
               LAUNCH SEED MATRIX
             </button>
           </div>
+
+          {/* Main Hero Photo Showcase */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+            className="relative w-full aspect-[21/9] sm:aspect-[21/9] rounded-3xl overflow-hidden border border-white/10 bg-[#07080d]/80 mt-12 group"
+          >
+            {/* Ambient Background Glow */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-transparent to-blue-500/10 opacity-30 group-hover:opacity-60 transition-opacity duration-700 pointer-events-none" />
+            
+            {/* Sliding Glossy Overlay Reflection */}
+            <div className="absolute inset-0 z-10 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
+
+            {/* The Main High-End Tech/Finance Image */}
+            <img 
+              src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1200&auto=format&fit=crop" 
+              alt="Daily Yield Core Dashboard" 
+              className="w-full h-full object-cover opacity-60 group-hover:opacity-85 group-hover:scale-[1.02] transition-all duration-700 ease-out"
+              referrerPolicy="no-referrer"
+            />
+
+            {/* Inner Futuristic UI Card Elements */}
+            <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 z-20 flex flex-col sm:flex-row justify-between items-start sm:items-center p-5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/5 gap-4">
+              <div className="space-y-1 text-left">
+                <span className="text-[8px] font-mono tracking-[0.25em] text-emerald-400 uppercase">CORE PROTOCOL</span>
+                <p className="text-xs font-black uppercase tracking-tight text-white">AUTOPILOT ARBITRAGE SYSTEM ACTIVE</p>
+                <p className="text-[9px] text-white/40 leading-relaxed">Secured fiat routing in partnership with Paystack Gateway</p>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono font-black uppercase text-emerald-400 tracking-widest shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Feed Link
+              </div>
+            </div>
+          </motion.div>
         </section>
 
         {/* Dynamic & Upcoming Features Section */}
@@ -1501,33 +1632,67 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
             <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">Operational Protocol</span>
             <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Core System Standards</h2>
           </div>
-          <div className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
               { 
                 title: "Asset Provisioning & Pools", 
                 desc: "User assets are consolidated into our core accounts, which helps minimize fee structures and gives access to high-tier transactional rates.",
-                icon: Coins
+                icon: Coins,
+                imageUrl: "https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=600&auto=format&fit=crop",
+                tag: "LIQUIDITY"
               },
               { 
                 title: "24-Hour Settlement Schedule", 
                 desc: "Protocol computations execute automated calculation cycles every 24 hours. Your terms finalize payouts directly to your primary balance.",
-                icon: Sparkles
+                icon: Sparkles,
+                imageUrl: "https://images.unsplash.com/photo-1508921912186-1d1a45ebb3c1?q=80&w=600&auto=format&fit=crop",
+                tag: "SETTLEMENT"
               },
               { 
                 title: "Audit Gatekeeping via Paystack", 
                 desc: "All payments and allocations are audited and compliant with safe financial protocols, utilizing Paystack for all gateways.",
-                icon: Shield
+                icon: Shield,
+                imageUrl: "https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=600&auto=format&fit=crop",
+                tag: "SECURITY"
               }
             ].map((step, idx) => (
-              <div key={idx} className="p-6 bg-white/[0.01] border border-white/[0.03] rounded-xl flex gap-6 items-start">
-                <div className="w-10 h-10 rounded bg-[#10b981]/10 flex items-center justify-center text-[#10b981] shrink-0">
-                  <step.icon size={18} />
+              <motion.div 
+                key={idx} 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: idx * 0.15 }}
+                className="p-6 bg-white/[0.01] hover:bg-white/[0.02] border border-white/[0.04] hover:border-emerald-500/20 rounded-2xl transition-all duration-300 flex flex-col gap-5 group"
+              >
+                {/* Immersive Animated Photo Card with Zoom and Glow Overlay */}
+                <div className="relative w-full h-40 rounded-xl overflow-hidden border border-white/5 bg-black/20">
+                  {/* Subtle Top-Right Corner Accent Tag */}
+                  <div className="absolute top-3 right-3 z-20 px-2 py-1 rounded bg-[#07080d]/85 border border-white/10 text-[8px] font-mono font-black text-emerald-400 tracking-wider">
+                    {step.tag}
+                  </div>
+                  
+                  {/* Image with zoom and soft floating shadow */}
+                  <img 
+                    src={step.imageUrl} 
+                    alt={step.title} 
+                    className="w-full h-full object-cover opacity-60 group-hover:opacity-85 group-hover:scale-[1.06] transition-all duration-700 ease-out"
+                    referrerPolicy="no-referrer"
+                  />
+                  
+                  {/* Overlay shadow mask to ground the image */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-black uppercase tracking-tight text-white mb-1">{step.title}</h4>
-                  <p className="text-xs text-white/40 leading-relaxed font-medium">{step.desc}</p>
+
+                {/* Card Info and Labels */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/15 shrink-0">
+                      <step.icon size={16} />
+                    </div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white leading-tight">{step.title}</h4>
+                  </div>
+                  <p className="text-[11px] text-white/45 leading-relaxed font-medium">{step.desc}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </section>
