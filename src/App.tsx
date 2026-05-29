@@ -3572,6 +3572,8 @@ export default function App() {
     );
   }
 
+  const isOnePlayView = view === 'oneplay' || view === 'oneplay-game' || view === 'oneplay-code';
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-app)] overflow-x-hidden">
       {/* OPay Global Page Transition Loader Overlay */}
@@ -3642,7 +3644,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className={cn("p-4 sm:p-6 lg:p-8", !isOnePlayView && "pb-28 sm:pb-32")}>
         {/* Background decoration - Updated to Midnight Ink */}
         <div className="fixed inset-0 -z-10 bg-[var(--color-bg-app)]" />
 
@@ -4140,6 +4142,56 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Floating Bottom Island Navigation Bar */}
+      {!isOnePlayView && (
+        <div className="fixed bottom-6 left-0 right-0 z-[100] px-4 flex justify-center pointer-events-none">
+          <motion.div 
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 px-5 py-2 rounded-full flex items-center gap-2 sm:gap-6 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.7)]"
+          >
+            {[
+              { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+              { id: 'wallet', label: 'Wallet', icon: Wallet },
+              { id: 'referral', label: 'Referral', icon: Users },
+              { id: 'chatbot', label: 'Daily Bot', icon: Bot },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id as any)}
+                  className="flex flex-col items-center gap-1 group relative py-1.5 px-4 rounded-full transition-all duration-300 cursor-pointer"
+                >
+                  {/* Glowing background behind active item */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="navGlow"
+                      className="absolute inset-0 bg-emerald-500/10 rounded-full border border-emerald-500/15"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  <div className={cn(
+                    "relative z-10 transition-transform duration-300 group-hover:scale-110",
+                    isActive ? "text-emerald-400" : "text-white/40 group-hover:text-white/80"
+                  )}>
+                    <Icon size={20} strokeWidth={isActive ? 2 : 1.5} />
+                  </div>
+                  <span className={cn(
+                    "text-[9px] font-mono uppercase tracking-[0.15em] relative z-10 transition-colors duration-300 font-bold",
+                    isActive ? "text-emerald-400" : "text-white/30 group-hover:text-white/60"
+                  )}>
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </motion.div>
+        </div>
+      )}
     </div>
   </div>
 );

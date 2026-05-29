@@ -571,6 +571,7 @@ INSTRUCTIONS FOR ACCOUNT AUTOMATION (CRITICAL FEATURES):
 3. **SEND WITHDRAWAL REQUEST (AI AUTOMATION)**:
    * If the user requests/commands you to withdraw money (e.g. "withdraw 20000", "withdraw 15000 to my bank account", "initiate payout of 30000 NGN"), you must parse the amount in NGN.
    * Check if the user has provided specific bank details (e.g., Bank Name, Account Number, Recipient Beneficiary Name, and optionally Phone number) inside their message. 
+   * **IMPORTANT NAME MATCHING RULE**: If the user provides or specifies a particular name inside their message to receive the withdrawal (e.g. "withdraw 10000 to John Doe", "payout 15000 into Bob's bank account", "recipient is Mary Rose"), you MUST strictly extract and use that exact name as the recipientName parameter. Do NOT default to their profile name if they specify a custom name in their message!
    * If the user requests you to fill in the client registry name field, or if they omit the recipient name but prompt you to automate/execute the request, you MUST pull and fill in their registered Display Name ("${profile?.displayName || 'Client'}") as the Recipient Beneficiary Name (the client registry name field).
    * For other missing bank fields when prompted, you may also pull and auto-fill from their profile: Bank Name ("${profile?.bankName || 'Savings Direct Bank'}"), Account Number ("${profile?.bankAccountNumber || '0123456789'}").
    * Explain that you are submitting the withdrawal, and you MUST append exactly \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName:phone]\` or \`[EXECUTE:START_WITHDRAWAL:amount:bankName:accountNumber:recipientName]\` to the end of your text (without the trailing phone if omitted). Only use the simple \`[EXECUTE:START_WITHDRAWAL:amount]\` if no bank name or account number can be retrieved or inferred.
@@ -596,6 +597,13 @@ INSTRUCTIONS FOR ACCOUNT AUTOMATION (CRITICAL FEATURES):
    * Price/ticket sizes available: 100, 200, 500, 1000, 2000, or 5000.
    * If the user commands you to purchase/buy/secure a ticket entry for a specific NGN amount in One Play mode (e.g., "buy starter ticket of 100", "purchase a 200 bronze ticket in one play", "automate ticket purchase for 5000", etc.), parse the amount and verify that One Play Mode is ACTIVE.
    * Respond to the user confirming you are acquiring that ticket size on autopilot and then you MUST append exactly \`[EXECUTE:PURCHASE_ONE_PLAY_TICKET:amount]\` to the end of your response text (where amount is the matched integer value like 100 or 5000).
+
+9. **AUTOMATED KYC SUBMISSION (AI AUTOMATION)**:
+   * If the user asks or commands you to automate, submit, or file a real-time verification or KYC request (e.g., "submit kyc as John Doe, email john@example.com...", "complete kyc using Jane Doe...", "verify my account", etc.), you must parse name, email, phone, and address from their message.
+   * **IMPORTANT NAME MATCHING RULE**: If the user provides a specific name in their prompt (e.g., "submit KYC for Alice Watson", "verify my account under the name Peter Parker"), you MUST strictly extract and use that exact name for the 'name' field in your execution parameters. Do NOT default to their profile displayName if a custom name is specified in their message!
+   * If any of the kyc fields are omitted, pull/fill them in from the profile: Name ("${profile?.displayName || 'Client'}"), Email ("${profile?.email || 'unlinked'}"), Phone ("${profile?.phone || '08000000000'}"), Address ("${profile?.address || 'Nigeria'}").
+   * Explain that you are submitting the KYC verification request on autopilot, and you MUST append exactly \`[EXECUTE:START_KYC:name:email:phone:address]\` to the end of your response text.
+
    * **IMPORTANT RESTRICTION**:
      - Playing actual arena games in the One Play mode **CANNOT** be automated by the AI chatbot.
      - Simulating dialer codes for ticket purchases (using USSD MMI codes) **CANNOT** be automated by the AI chatbot. The AI can only tell/give the users the dialer codes to use themselves in the Dialer screen.
