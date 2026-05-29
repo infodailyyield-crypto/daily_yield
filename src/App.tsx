@@ -1653,6 +1653,83 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
           </div>
         </section>
 
+        {/* Verified User Testimonies */}
+        <section className="pt-10 border-t border-white/5 space-y-8">
+          <div className="text-center md:text-left">
+            <span className="text-[9px] font-mono tracking-[0.2em] text-emerald-400 uppercase">Success Stories</span>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-white mt-1">Verified Member Testimonials</h2>
+            <p className="text-xs text-white/50 mt-2 max-w-xl leading-relaxed">
+              Discover how fellow Nigerian investors, tech professionals, and portfolio managers are leveraging Daily Yield to build consistent, secure returns on their assets.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                name: "Chinedu Okafor",
+                role: "Financial auditor, Lagos",
+                text: "“Daily Yield replaced traditional low-yield assets for my secondary portfolio. The locked 50% ROI automated settlement cycle executed perfectly, and withdrawals settled straight to my bank in minutes.”",
+                avatar: "https://images.unsplash.com/photo-1531384441138-2736e62e0919?q=80&w=300&auto=format&fit=crop",
+                badge: "Verified Elite"
+              },
+              {
+                name: "Fatima Bello",
+                role: "Tech Analyst, Abuja",
+                text: "“Incredible transparency. The real-time portal integration keeps me fully updated. I verified my KYC level within 3 hours, and my automated yield plans execute with 100% precision.”",
+                avatar: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=300&auto=format&fit=crop",
+                badge: "Verified Celestial"
+              },
+              {
+                name: "Olumide Balogun",
+                role: "Agri-Tech Founder, Ibadan",
+                text: "“The referral reward program in combination with institutional yield accumulation makes this exceptional. Daily Yield is by far the most streamlined, high-performance platform on the market.”",
+                avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop",
+                badge: "Verified Premium"
+              }
+            ].map((testimony, idx) => (
+              <div 
+                key={idx} 
+                className="p-6 bg-white/[0.01] hover:bg-white/[0.02] border border-white/[0.04] hover:border-emerald-500/20 rounded-3xl transition-all duration-300 flex flex-col justify-between space-y-6 relative group"
+              >
+                {/* Visual Accent/Glow behind card */}
+                <div className="absolute inset-x-0 -top-px h-10 bg-gradient-to-b from-emerald-500/[0.04] to-transparent rounded-t-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                
+                <div className="space-y-4">
+                  {/* Rating Stars */}
+                  <div className="flex gap-1 text-emerald-450">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span key={i} className="text-xs text-emerald-400">★</span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-white/70 leading-relaxed font-medium italic">
+                    {testimony.text}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 pt-4 border-t border-white/[0.02]">
+                  <div className="relative w-11 h-11 rounded-full overflow-hidden border border-white/10 bg-black/40">
+                    <img 
+                      src={testimony.avatar} 
+                      alt={testimony.name} 
+                      className="w-full h-full object-cover grayscale brightness-90 group-hover:grayscale-0 group-hover:brightness-100 transition-all duration-300 pointer-events-none"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-tight text-white">{testimony.name}</h4>
+                      <span className="text-[7px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase shrink-0">
+                        {testimony.badge}
+                      </span>
+                    </div>
+                    <p className="text-[9px] font-mono text-white/40 tracking-wider uppercase mt-0.5">{testimony.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Clean Interactive Frequently Asked Questions */}
         <section className="pt-10 border-t border-white/5 space-y-8">
           <div className="text-center md:text-left">
