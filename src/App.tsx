@@ -2429,6 +2429,89 @@ const Sidebar = ({
   );
 };
 
+interface LandingPageOfflineSplashScreenProps {
+  onContinue: () => void;
+  logoUrl: string;
+}
+
+const LandingPageOfflineSplashScreen = ({ onContinue, logoUrl }: LandingPageOfflineSplashScreenProps) => {
+  return (
+    <div className="min-h-screen bg-[#07080c] flex flex-col items-center justify-between p-6 sm:p-12 relative overflow-hidden text-white select-none">
+      {/* Dynamic Ambient Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[130px] rounded-full animate-pulse pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/5 blur-[130px] rounded-full animate-pulse pointer-events-none" style={{ animationDelay: '3s' }} />
+
+      {/* Top Header Placeholder to balance layout */}
+      <div className="w-full flex justify-between items-center max-w-lg z-10 opacity-70">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-emerald-400 font-bold">SECURE CONNECTIONS LIVE</span>
+        </div>
+        <span className="text-[9px] font-mono tracking-wider text-white/40 uppercase">V3.1.2 PROT</span>
+      </div>
+
+      {/* Main Center Content Container */}
+      <div className="flex flex-col items-center text-center max-w-md my-auto z-10 pt-12 pb-12 animate-in fade-in duration-1000">
+        {/* Animated Brand Identity Container */}
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: [0.95, 1.05, 1], opacity: 1 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="relative group mb-8"
+        >
+          {/* Subtle Outer pulsing halo */}
+          <div className="absolute -inset-4 bg-emerald-500/20 rounded-[2.5rem] blur-xl opacity-80 group-hover:opacity-100 group-hover:-inset-6 transition-all duration-700 animate-pulse animate-duration-[3000ms]" />
+          
+          <div className="relative p-7 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl flex items-center justify-center">
+            <img 
+              src={logoUrl} 
+              alt="DailyYield Logo" 
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover hover:scale-110 transition-transform duration-500 shadow-md pointer-events-none"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        </motion.div>
+
+        {/* Brand Name Typography */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+          className="space-y-3"
+        >
+          <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-2">
+            DAILY<span className="text-emerald-400">YIELD</span>
+          </h1>
+          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-400 font-bold">
+            INSTITUTIONAL YIELD ENGINE
+          </p>
+          <div className="h-0.5 w-12 bg-emerald-500/30 mx-auto rounded-full mt-4" />
+          <p className="text-xs text-white/50 max-w-xs leading-relaxed mx-auto pt-4">
+            Welcome back to Nigeria's elite automated portfolio yield pipeline. Real-time compounding starts here.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Bottom Interface Bar */}
+      <div className="w-full max-w-md flex flex-col gap-4 z-10 pb-8">
+        <motion.button
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.8 }}
+          onClick={onContinue}
+          className="w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] bg-emerald-500 text-black rounded-2xl hover:bg-emerald-400 transition-all duration-300 transform active:scale-95 shadow-[0_12px_24px_-4px_rgba(16,185,129,0.3)] hover:shadow-[0_16px_32px_-4px_rgba(16,185,129,0.4)] cursor-pointer text-center flex items-center justify-center gap-2"
+        >
+          Continue to Sign In / Sign Up <ArrowUpRight size={14} className="shrink-0" />
+        </motion.button>
+        
+        <p className="text-[8px] font-mono text-center text-white/30 uppercase tracking-widest leading-relaxed">
+          BY SECURITY PROTOCOL, CONTINUING CONFIRMS DEPLOYED WALLET STANDARDS
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [isLanding, setIsLanding] = useState(true);
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -3582,11 +3665,15 @@ export default function App() {
 
   if (!user) {
     const showLanding = pageStatus?.landingPageEnabled !== false;
-    if (showLanding && isLanding) {
-      if (pageStatus?.useMinimalLanding) {
-        return <MinimalistLandingPage onGetStarted={() => setIsLanding(false)} />;
+    if (isLanding) {
+      if (showLanding) {
+        if (pageStatus?.useMinimalLanding) {
+          return <MinimalistLandingPage onGetStarted={() => setIsLanding(false)} />;
+        }
+        return <LandingPage onGetStarted={() => setIsLanding(false)} />;
+      } else {
+        return <LandingPageOfflineSplashScreen onContinue={() => setIsLanding(false)} logoUrl={logo} />;
       }
-      return <LandingPage onGetStarted={() => setIsLanding(false)} />;
     }
     return (
       <div className="relative min-h-screen">
@@ -12439,7 +12526,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                            <LayoutDashboard className="text-emerald-400" /> Landing Page Status
                          </h3>
                          <p className="text-white/40 text-xs leading-relaxed mt-2 animate-pulse">
-                           When disabled, standard users visiting the platform bypass the landing page entirely and redirect straight to the login card.
+                           When disabled, standard users visiting the platform will see an elegant brand Splash Screen with the DailyYield logo and a "Continue" button leading to the sign-in/up card.
                          </p>
                       </div>
                       <div className="mt-6 flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
