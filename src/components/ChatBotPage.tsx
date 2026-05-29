@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, Sparkles, Bot, User, Trash2, Cpu, RefreshCw, 
-  HelpCircle, ChevronDown, CheckCircle, Info, MessageSquare, AlertCircle,
-  Activity, Clock, History, XCircle
+  HelpCircle, ChevronDown, CheckCircle, Info, MessageSquare, AlertCircle
 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, where, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 interface ChatBotPageProps {
   profile: any;
@@ -205,8 +204,6 @@ export function ChatBotPage({ profile, setView, aiInvest, aiPlaceBid, aiWithdraw
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
-  const [botTab, setBotTab] = useState<'chat' | 'logs'>('chat');
-  const [userAutomations, setUserAutomations] = useState<any[]>([]);
 
   const [dbFaqs, setDbFaqs] = useState<any[]>([]);
   const [dbAirdrops, setDbAirdrops] = useState<any[]>([]);
@@ -215,63 +212,6 @@ export function ChatBotPage({ profile, setView, aiInvest, aiPlaceBid, aiWithdraw
   const [userInvestments, setUserInvestments] = useState<any[]>([]);
   const [userWithdrawals, setUserWithdrawals] = useState<any[]>([]);
   const [userDepositRequests, setUserDepositRequests] = useState<any[]>([]);
-
-  // Log automated AI activities helper
-  const logAIAutomation = async (
-    type: string,
-    activityName: string,
-    status: 'success' | 'failure',
-    details: string,
-    errorMessage: string = ''
-  ) => {
-    if (!profile?.uid) return;
-    try {
-      await addDoc(collection(db, 'aiAutomations'), {
-        userId: profile.uid,
-        userName: profile.displayName || 'Investor',
-        type,
-        activityName,
-        status,
-        details,
-        errorMessage,
-        timestamp: serverTimestamp()
-      });
-    } catch (err) {
-      console.warn("Error logging automated activity:", err);
-    }
-  };
-
-  // Stream User AI automations
-  useEffect(() => {
-    if (!profile?.uid) return;
-    try {
-      const q = query(
-        collection(db, 'aiAutomations'), 
-        where('userId', '==', profile.uid),
-        orderBy('timestamp', 'desc')
-      );
-      return onSnapshot(q, (snap) => {
-        setUserAutomations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }, (err) => {
-        console.log("User automations stream index error, falling back to simple query:", err);
-        const qFallback = query(
-          collection(db, 'aiAutomations'),
-          where('userId', '==', profile.uid)
-        );
-        return onSnapshot(qFallback, (snap) => {
-          const unsorted = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-          unsorted.sort((a, b) => {
-            const ta = a.timestamp?.seconds || 0;
-            const tb = b.timestamp?.seconds || 0;
-            return tb - ta;
-          });
-          setUserAutomations(unsorted);
-        });
-      });
-    } catch (e) {
-      console.warn("Automations listen failed:", e);
-    }
-  }, [profile?.uid]);
 
   // Stream FAQs
   useEffect(() => {
@@ -420,7 +360,6 @@ export function ChatBotPage({ profile, setView, aiInvest, aiPlaceBid, aiWithdraw
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isTyping) return;
 
-    setBotTab('chat');
     setErrorStatus(null);
     const userMessage: Message = {
       id: 'msg_' + Date.now(),
@@ -741,14 +680,11 @@ Always integrate relative links natively in your responses whenever you explain,
           try {
             await aiInvest(planObj.id, capital, planObj.days, planObj.rate);
             execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Locked Box Fixed Investment Plan **${planObj.title}** has been successfully registered under your account with capital **₦${capital.toLocaleString()}**! View details under [/portfolio](/portfolio).`;
-            await logAIAutomation('investment_plan', 'Investment Provisioning', 'success', `Locked Box Fixed Investment Plan ${planObj.title} registered with ₦${capital.toLocaleString()}`);
           } catch (err: any) {
             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Failed to establish plan ${planObj.title}. Reason: ${err.message}`;
-            await logAIAutomation('investment_plan', 'Investment Provisioning', 'failure', `Attempted to register ${planObj.title} with ₦${capital.toLocaleString()}`, err.message);
           }
         } else {
           execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Investment plan with ID "${planId}" of value ₦${capital.toLocaleString()} could not be established because the plan profile is invalid or unavailable.`;
-          await logAIAutomation('investment_plan', 'Investment Provisioning', 'failure', `Attempted invalid investment plan ID: "${planId}" of value ₦${capital.toLocaleString()}`, 'Investment plan unavailable or unmapped');
         }
       } else if (bidMatch) {
          const selection = bidMatch[1].toUpperCase() as 'A' | 'B';
@@ -759,14 +695,11 @@ Always integrate relative links natively in your responses whenever you explain,
              try {
                await aiPlaceBid(selection, amount);
                execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Market Duel current round bid of **₦${amount.toLocaleString()}** on **Card ${selection}** has been successfully committed! View results in [/marketduel](/marketduel).`;
-               await logAIAutomation('market_bid', 'Market Duel Auto-Bid', 'success', `Placed bid of ₦${amount.toLocaleString()} on Card ${selection}`);
              } catch (err: any) {
                execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Failed to place Market Duel bid. Reason: ${err.message}`;
-               await logAIAutomation('market_bid', 'Market Duel Auto-Bid', 'failure', `Attempted bid of ₦${amount.toLocaleString()} on Card ${selection}`, err.message);
              }
            } else {
              execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: AI bid module is currently unconfigured or mapping is offline.`;
-             await logAIAutomation('market_bid', 'Market Duel Auto-Bid', 'failure', `Attempted bid of ₦${amount.toLocaleString()} on Card ${selection}`, 'AI bid module unconfiguredor offline');
            }
          }
       } else if (withdrawCredMatch) {
@@ -780,14 +713,11 @@ Always integrate relative links natively in your responses whenever you explain,
              const bankDetails = { bankName, accountNumber, recipientName, phone };
              await aiWithdraw(amount, bankDetails);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: A withdrawal request of **₦${amount.toLocaleString()}** to **${bankName} (Acc: ${accountNumber}, Name: ${recipientName}${phone ? `, Phone: ${phone}` : ""})** has been successfully transmitted and queued for auditing! Funds have been safely deducted and logged under your balance. You can track this under [/wallet](/wallet).`;
-             await logAIAutomation('withdrawal', 'AI Payout Request', 'success', `Transmitted withdrawal request of ₦${amount.toLocaleString()} to ${bankName} (Acc: ${accountNumber}, Name: ${recipientName})`);
            } catch (err: any) {
              execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Withdrawal request failed. Reason: ${err.message}`;
-             await logAIAutomation('withdrawal', 'AI Payout Request', 'failure', `Attempted withdrawal of ₦${amount.toLocaleString()} to ${bankName} (Acc: ${accountNumber})`, err.message);
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Payout dispatcher is temporarily unmapped or offline.`;
-           await logAIAutomation('withdrawal', 'AI Payout Request', 'failure', `Attempted withdrawal of ₦${amount.toLocaleString()} to ${bankName}`, 'Payout dispatcher offline');
          }
       } else if (withdrawMatch) {
          const amount = parseInt(withdrawMatch[1], 10);
@@ -795,21 +725,18 @@ Always integrate relative links natively in your responses whenever you explain,
            try {
              await aiWithdraw(amount);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: A withdrawal request of **₦${amount.toLocaleString()}** has been successfully transmitted and queued for auditing! Funds have been safely deducted and logged under your balance. You can track this under [/wallet](/wallet).`;
-             await logAIAutomation('withdrawal', 'AI Payout Request', 'success', `Transmitted withdrawal request of ₦${amount.toLocaleString()}`);
            } catch (err: any) {
              execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Withdrawal request failed. Reason: ${err.message}`;
-             await logAIAutomation('withdrawal', 'AI Payout Request', 'failure', `Attempted withdrawal of ₦${amount.toLocaleString()}`, err.message);
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Payout dispatcher is temporarily unmapped or offline.`;
-           await logAIAutomation('withdrawal', 'AI Payout Request', 'failure', `Attempted withdrawal of ₦${amount.toLocaleString()}`, 'Payout dispatcher offline/unmapped');
          }
       } else if (upgradeMsgMatch) {
          const tierName = upgradeMsgMatch[1].trim();
          const customMsg = upgradeMsgMatch[2].trim();
          if (aiUpgradeTier) {
            try {
-             await aiUpgradeTier(tierName, customMsg); await logAIAutomation('tier_upgrade', 'Membership Tier Upgrade', 'success', `Registered upgrade request for ${tierName.toUpperCase()} with message "${customMsg}"`);
+             await aiUpgradeTier(tierName, customMsg);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Membership upgrade request for **${tierName.toUpperCase()}** has been successfully registered with message: *"${customMsg}"*! Our institutional audit team will verify your biographical credentials shortly. Track upgrades in [/tiers](/tiers).`;
            } catch (err: any) {
              execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Upgrade submission failed. Reason: ${err.message}`;
@@ -821,7 +748,7 @@ Always integrate relative links natively in your responses whenever you explain,
          const tierName = upgradeMatch[1].trim();
          if (aiUpgradeTier) {
            try {
-             await aiUpgradeTier(tierName); await logAIAutomation('tier_upgrade', 'Membership Tier Upgrade', 'success', `Registered upgrade request for ${tierName.toUpperCase()}`);
+             await aiUpgradeTier(tierName);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Membership upgrade request for **${tierName.toUpperCase()}** has been successfully registered! Our institutional audit team will verify your biographical credentials shortly. Track upgrades in [/tiers](/tiers).`;
            } catch (err: any) {
              execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Upgrade submission failed. Reason: ${err.message}`;
@@ -833,7 +760,7 @@ Always integrate relative links natively in your responses whenever you explain,
         const amount = parseInt(transferToPlayMatch[1], 10);
         if (aiTransferToPlay) {
           try {
-            await aiTransferToPlay(amount); await logAIAutomation('transfer_oneplay', 'OnePlay Wallet Transfer', 'success', `Moved ₦${amount.toLocaleString()} from Main to One Play wallet`);
+            await aiTransferToPlay(amount);
             execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Successfully moved **₦${amount.toLocaleString()}** from your Main wallet to your One Play sports wallet! Refreshed balances are available under [/wallet](/wallet).`;
           } catch (err: any) {
             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Wallet transfer failed. Reason: ${err.message}`;
@@ -845,19 +772,19 @@ Always integrate relative links natively in your responses whenever you explain,
          const amount = parseInt(transferFromPlayMatch[1], 10);
          if (aiTransferFromPlay) {
            try {
-             await aiTransferFromPlay(amount); await logAIAutomation('transfer_main', 'Main Wallet Payout Transfer', 'success', `Transferred ₦${amount.toLocaleString()} from One Play to Main wallet`);
+             await aiTransferFromPlay(amount);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Successfully transferred **₦${amount.toLocaleString()}** from your One Play sports wallet back to your Main wallet! Refreshed balances are available under [/wallet](/wallet).`;
            } catch (err: any) {
-             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Wallet payout failed.`; await logAIAutomation('transfer_main', 'Main Wallet Payout Transfer', 'failure', `Attempted transfer of ₦${amount.toLocaleString()} to Main`, 'Wallet payout failed');
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Wallet payout failed.`;
            }
          }
       } else if (claimAirdropMatch) {
          if (aiClaimAirdrop) {
            try {
-             const claimCount = await aiClaimAirdrop(); await logAIAutomation('claim_airdrop', 'Quantum Airdrop Claiming', 'success', `Claimed ${claimCount} Quantum Airdrop(s) successfully`);
+             const claimCount = await aiClaimAirdrop();
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Successfully claimed **${claimCount}** eligible Quantum Airdrop(s)! Bonus funds have been committed to your account balance. View logs under [/airdrop](/airdrop).`;
            } catch (err: any) {
-             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Airdrop claiming aborted. Reason: ${err.message}`; await logAIAutomation('claim_airdrop', 'Quantum Airdrop Claiming', 'failure', 'Attempted to claim dynamic airdrops', err.message);
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Airdrop claiming aborted. Reason: ${err.message}`;
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Quantum Airdrop automation dispatcher is currently unmapped.`;
@@ -869,7 +796,7 @@ Always integrate relative links natively in your responses whenever you explain,
          const address = kycMatch[4].trim();
          if (aiSubmitKYC) {
            try {
-             await aiSubmitKYC({ username: name, email, phone, address }); await logAIAutomation('kyc_submission', 'Biographical KYC Submission', 'success', `Submitted real-time verification credentials (Name: ${name}, Email: ${email})`);
+             await aiSubmitKYC({ username: name, email, phone, address });
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Real-time Verification request (KYC) successfully submitted! 
 * **Full Name**: ${name}
 * **Email Address**: ${email}
@@ -878,7 +805,7 @@ Always integrate relative links natively in your responses whenever you explain,
 
 Biographical verification status is now queued as *PENDING* under [/tiers](/tiers).`;
            } catch (err: any) {
-             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: KYC submission aborted. Reason: ${err.message}`; await logAIAutomation('kyc_submission', 'Biographical KYC Submission', 'failure', 'Attempted verification credentials submission', err.message);
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: KYC submission aborted. Reason: ${err.message}`;
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: KYC automation dispatcher is offline.`;
@@ -887,14 +814,14 @@ Biographical verification status is now queued as *PENDING* under [/tiers](/tier
          const gameId = playHubGameMatch[1].trim().toLowerCase();
          if (aiPlayHubGame) {
            try {
-             const res = await aiPlayHubGame(gameId); await logAIAutomation('play_game', 'Game Hub Simulation', 'success', `Automated gameplay in ${res.gameTitle} (${res.won ? 'WIN - Won ₦' + res.amount.toLocaleString() : 'LOSS'})`);
+             const res = await aiPlayHubGame(gameId);
              if (res.won) {
                execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: Automated gameplay in **${res.gameTitle}** (Fee: ₦${res.fee}) completed successfully!\n\n🏆 **RESULT**: **WIN!** You won ₦${res.amount.toLocaleString()} NGN which has been instantly credited to your Main wallet balance!`;
              } else {
                execStatus = `📉 **DAILY_YIELD_BOT AUTOMATION COMPLETED**: Automated gameplay in **${res.gameTitle}** (Fee: ₦${res.fee}) completed.\n\n🎲 **RESULT**: **LOSS**. Better luck next time! Your balance has been updated.`;
              }
            } catch (err: any) {
-             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Autopilot gameplay aborted. Reason: ${err.message}`; await logAIAutomation('play_game', 'Game Hub Simulation', 'failure', `Attempted gameplay in game ID ${gameId}`, err.message);
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: Autopilot gameplay aborted. Reason: ${err.message}`;
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: Game Hub automation dispatcher is offline.`;
@@ -903,10 +830,10 @@ Biographical verification status is now queued as *PENDING* under [/tiers](/tier
          const amount = parseInt(purchaseOnePlayTicketMatch[1], 10);
          if (aiPurchaseOnePlayTicket) {
            try {
-             await aiPurchaseOnePlayTicket(amount); await logAIAutomation('ticket_purchase', 'One Play Draw Ticket', 'success', `Purchased One Play draw ticket of value ₦${amount.toLocaleString()}`);
+             await aiPurchaseOnePlayTicket(amount);
              execStatus = `✅ **DAILY_YIELD_BOT AUTOMATION SUCCESS**: One Play Ticket of **₦${amount.toLocaleString()} NGN** has been purchased on autopilot! It has been added to your draw queue. View active tickets under [/oneplay](/oneplay).`;
            } catch (err: any) {
-             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: One Play Ticket purchase aborted. Reason: ${err.message}`; await logAIAutomation('ticket_purchase', 'One Play Draw Ticket', 'failure', `Attempted purchase of One Play ticket value ₦${amount.toLocaleString()}`, err.message);
+             execStatus = `❌ **DAILY_YIELD_BOT AUTOMATION DENIED**: One Play Ticket purchase aborted. Reason: ${err.message}`;
            }
          } else {
            execStatus = `⚠️ **DAILY_YIELD_BOT AUTOMATION FAILURE**: One Play ticket purchaser is offline.`;
@@ -1180,201 +1107,91 @@ Biographical verification status is now queued as *PENDING* under [/tiers](/tier
         {/* Chat Section */}
         <div className="lg:col-span-3 flex flex-col h-[680px] bg-gradient-to-b from-white/[0.02] to-transparent rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
           
-          {/* Section Header Tabs */}
-          <div className="flex border-b border-white/5 bg-black/40">
-            <button
-              onClick={() => setBotTab('chat')}
-              className={`flex-1 py-4 text-center font-black text-xs uppercase cursor-pointer tracking-wider flex items-center justify-center gap-2 border-b-2 transition-all ${
-                botTab === 'chat'
-                  ? 'border-emerald-400 text-white bg-white/[0.02]'
-                  : 'border-transparent text-white/45 hover:text-white hover:bg-white/[0.01]'
-              }`}
-            >
-              <MessageSquare size={13} className={botTab === 'chat' ? 'text-emerald-400' : 'text-inherit'} />
-              <span>Yield Pilot Chat</span>
-            </button>
-            <button
-              onClick={() => setBotTab('logs')}
-              className={`flex-1 py-4 text-center font-black text-xs uppercase cursor-pointer tracking-wider flex items-center justify-center gap-2 border-b-2 transition-all ${
-                botTab === 'logs'
-                  ? 'border-emerald-400 text-white bg-white/[0.02]'
-                  : 'border-transparent text-white/45 hover:text-white hover:bg-white/[0.01]'
-              }`}
-            >
-              <Activity size={13} className={botTab === 'logs' ? 'text-emerald-400' : 'text-inherit'} />
-              <span>Automated Activity Logs</span>
-              {userAutomations.length > 0 && (
-                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full shrink-0 font-bold scale-90">
-                  {userAutomations.length}
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Chat Panel Body (Messages) */}
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar bg-[#080911]/25">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-6">
+                <MessageSquare size={44} className="text-emerald-400 mb-3 animate-pulse" />
+                <p className="text-white font-black uppercase text-xs tracking-wider">DAILY_YIELD_BOT CO-PILOT OFFLINE</p>
+                <p className="text-white/50 text-xs mt-1">Choose a prompt chip below to initialize AI session</p>
+              </div>
+            ) : (
+              messages.map((m) => {
+                const isBot = m.role === 'assistant';
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 220, damping: 25 }}
+                    key={m.id}
+                    className={`flex gap-3 md:gap-4 ${isBot ? 'justify-start' : 'justify-end'}`}
+                  >
+                    {isBot && (
+                      <span className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 self-start shadow-md">
+                        <Bot size={17} />
+                      </span>
+                    )}
 
-          {botTab === 'chat' ? (
-            /* Chat Panel Body */
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar bg-[#080911]/25">
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-6">
-                  <MessageSquare size={44} className="text-emerald-400 mb-3 animate-pulse" />
-                  <p className="text-white font-black uppercase text-xs tracking-wider">DAILY_YIELD_BOT CO-PILOT OFFLINE</p>
-                  <p className="text-white/50 text-xs mt-1">Choose a prompt chip below to initialize AI session</p>
-                </div>
-              ) : (
-                messages.map((m) => {
-                  const isBot = m.role === 'assistant';
-                  return (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ type: "spring", stiffness: 220, damping: 25 }}
-                      key={m.id}
-                      className={`flex gap-3 md:gap-4 ${isBot ? 'justify-start' : 'justify-end'}`}
-                    >
-                      {isBot && (
-                        <span className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 self-start shadow-md">
-                          <Bot size={17} />
-                        </span>
-                      )}
-
-                      <div className={`shadow-xl px-5 py-4 border ${
-                        isBot 
-                          ? 'bg-[#10111e]/85 border-white/5 text-white/95 rounded-t-[2rem] rounded-br-[2rem] rounded-bl-[6px]' 
-                          : 'bg-emerald-500/10 border-emerald-500/25 text-white rounded-t-[2rem] rounded-bl-[2rem] rounded-br-[6px]'
-                      } ${isBot ? 'max-w-[85%] md:max-w-[78%]' : 'max-w-[75%]'}`}>
-                        {/* Message Content Parser */}
-                        <div className="space-y-1">
-                          {isBot ? formatAIResponse(m.content, setView) : <p className="text-sm font-semibold tracking-wide whitespace-pre-wrap leading-relaxed">{m.content}</p>}
-                        </div>
-
-                        {/* Msg bottom bar */}
-                        <div className="flex justify-between items-center gap-4 mt-3 pt-2 border-t border-white/[0.03] text-[9px] text-white/30 font-medium select-none">
-                          <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {m.modelUsed && (
-                            <span className="opacity-70 bg-white/5 px-2 py-0.5 rounded-full font-extrabold capitalize flex items-center gap-1">
-                              <Cpu size={9} className="text-emerald-400 shrink-0" /> {m.modelUsed}
-                            </span>
-                          )}
-                        </div>
+                    <div className={`shadow-xl px-5 py-4 border ${
+                      isBot 
+                        ? 'bg-[#10111e]/85 border-white/5 text-white/95 rounded-t-[2rem] rounded-br-[2rem] rounded-bl-[6px]' 
+                        : 'bg-emerald-500/10 border-emerald-500/25 text-white rounded-t-[2rem] rounded-bl-[2rem] rounded-br-[6px]'
+                    } ${isBot ? 'max-w-[85%] md:max-w-[78%]' : 'max-w-[75%]'}`}>
+                      {/* Message Content Parser */}
+                      <div className="space-y-1">
+                        {isBot ? formatAIResponse(m.content, setView) : <p className="text-sm font-semibold tracking-wide whitespace-pre-wrap leading-relaxed">{m.content}</p>}
                       </div>
 
-                      {!isBot && (
-                        <span className="w-9 h-9 rounded-2xl bg-white/5 border border-white/10 text-emerald-300 flex items-center justify-center shrink-0 self-start font-black text-xs">
-                          {profile?.displayName?.toUpperCase().charAt(0) || "U"}
-                        </span>
-                      )}
-                    </motion.div>
-                  );
-                })
-              )}
+                      {/* Msg bottom bar */}
+                      <div className="flex justify-between items-center gap-4 mt-3 pt-2 border-t border-white/[0.03] text-[9px] text-white/30 font-medium select-none">
+                        <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {m.modelUsed && (
+                          <span className="opacity-70 bg-white/5 px-2 py-0.5 rounded-full font-extrabold capitalize flex items-center gap-1">
+                            <Cpu size={9} className="text-emerald-400 shrink-0" /> {m.modelUsed}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-              {isTyping && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex gap-4 justify-start"
-                >
-                  <span className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                    <Bot size={17} className="animate-spin" />
-                  </span>
-                  <div className="bg-[#10111e]/85 border border-white/5 rounded-t-[2rem] rounded-br-[2rem] rounded-bl-[6px] px-6 py-4 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </motion.div>
-              )}
+                    {!isBot && (
+                      <span className="w-9 h-9 rounded-2xl bg-white/5 border border-white/10 text-emerald-300 flex items-center justify-center shrink-0 self-start font-black text-xs">
+                        {profile?.displayName?.toUpperCase().charAt(0) || "U"}
+                      </span>
+                    )}
+                  </motion.div>
+                );
+              })
+            )}
 
-              {errorStatus && (
-                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-start gap-2.5 text-xs">
-                  <AlertCircle size={16} className="shrink-0 text-red-400 mt-0.5" />
-                  <div>
-                    <p className="font-extrabold text-sm uppercase tracking-wider">Connection Failure</p>
-                    <p className="opacity-90 mt-1">{errorStatus}</p>
-                  </div>
+            {isTyping && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex gap-4 justify-start"
+              >
+                <span className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Bot size={17} className="animate-spin" />
+                </span>
+                <div className="bg-[#10111e]/85 border border-white/5 rounded-t-[2rem] rounded-br-[2rem] rounded-bl-[6px] px-6 py-4 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-              )}
+              </motion.div>
+            )}
 
-              <div ref={messagesEndRef} />
-            </div>
-          ) : (
-            /* Automated Activity Logs Dashboard */
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 custom-scrollbar bg-[#080911]/25">
-              {userAutomations.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-6 min-h-[400px]">
-                  <Activity size={44} className="text-emerald-400 mb-3 animate-pulse" />
-                  <p className="text-white font-black uppercase text-xs tracking-wider">No Automated Activities Logged</p>
-                  <p className="text-white/50 text-xs mt-1">Prompt the AI to execute key automation requests to view activities.</p>
+            {errorStatus && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-start gap-2.5 text-xs">
+                <AlertCircle size={16} className="shrink-0 text-red-400 mt-0.5" />
+                <div>
+                  <p className="font-extrabold text-sm uppercase tracking-wider">Connection Failure</p>
+                  <p className="opacity-90 mt-1">{errorStatus}</p>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center pb-2 mb-2 border-b border-white/5">
-                    <span className="text-[10px] text-white/45 uppercase font-black tracking-widest flex items-center gap-1.5">
-                      <History size={11} className="text-emerald-400 shrink-0" />
-                      <span>Co-Pilot Automated Execution Stream</span>
-                    </span>
-                    <span className="text-[10px] text-emerald-400/70 font-black">{userAutomations.length} event(s) recorded</span>
-                  </div>
+              </div>
+            )}
 
-                  {userAutomations.map((log) => {
-                    const isSuccess = log.status === 'success';
-                    return (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        key={log.id}
-                        className={`p-4 rounded-[1.5rem] border ${
-                          isSuccess
-                            ? 'bg-emerald-500/[0.02] border-emerald-500/10 hover:border-emerald-500/20'
-                            : 'bg-red-500/[0.02] border-red-500/10 hover:border-red-500/20'
-                        } transition-all duration-200`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                              isSuccess 
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.05)]' 
-                                : 'bg-red-500/10 text-red-400 border border-red-500/10'
-                            }`}>
-                              {isSuccess ? <CheckCircle size={15} /> : <XCircle size={15} />}
-                            </span>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h5 className="text-xs font-black text-white">{log.activityName}</h5>
-                                <span className={`text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest ${
-                                  isSuccess 
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/10' 
-                                    : 'bg-red-500/20 text-red-300 border border-red-500/10'
-                                }`}>
-                                  {log.status}
-                                </span>
-                              </div>
-                              <p className="text-xs text-white/60 mt-1 leading-relaxed font-medium">{log.details}</p>
-                              {log.errorMessage && (
-                                <p className="text-[10px] text-red-400/90 bg-red-500/5 px-2 py-1.5 rounded-xl border border-red-500/10 mt-2 font-mono leading-relaxed">
-                                  Error: {log.errorMessage}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex sm:flex-col items-end shrink-0 gap-1.5 sm:gap-0 select-none">
-                            <span className="text-[9px] text-white/35 font-mono flex items-center gap-1">
-                              <Clock size={9} />
-                              {log.timestamp ? (
-                                new Date(log.timestamp.seconds * 1000).toLocaleString()
-                              ) : (
-                                "just now"
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+            <div ref={messagesEndRef} />
+          </div>
 
           {/* Quick recommendations */}
           <div className="border-t border-white/5 px-5 py-4 bg-black/30 flex gap-2.5 items-center overflow-x-auto custom-scrollbar whitespace-nowrap">

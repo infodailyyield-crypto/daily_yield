@@ -76,6 +76,7 @@ import { OnePlayGameView } from './components/OnePlayGameView';
 import { OnePlayCodeView } from './components/OnePlayCodeView';
 import { OnePlayAdminCodesPanel } from './components/OnePlayAdminCodesPanel';
 import { ChatBotPage } from './components/ChatBotPage';
+import { WalletMoneyAnimation } from './components/WalletMoneyAnimation';
 
 // --- Push Helpers ---
 const triggerPush = async (userId: string, title: string, body: string, url: string = "/") => {
@@ -224,6 +225,44 @@ const LandingPage = ({ onGetStarted }: { onGetStarted: () => void }) => {
   const [showDocs, setShowDocs] = useState(false);
   const [docsTab, setDocsTab] = useState<'docs' | 'privacy' | 'terms' | 'support'>('docs');
   const [chatExpanded, setChatExpanded] = useState(true);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Detect if device is iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(ios);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      try {
+        const { outcome } = await installPrompt.userChoice;
+        console.log(`[PWA] Install prompt outcome: ${outcome}`);
+        if (outcome === 'accepted') {
+          setInstallPrompt(null);
+        }
+      } catch (err) {
+        console.error('[PWA] Error handling install choice:', err);
+      }
+    } else {
+      setShowInstallGuide(true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0b12] text-white selection:bg-emerald-500/30 overflow-x-hidden bg-mesh">
@@ -642,6 +681,135 @@ const LandingPage = ({ onGetStarted }: { onGetStarted: () => void }) => {
         )}
       </AnimatePresence>
 
+      {/* PWA Installation Drawer/Modal */}
+      <AnimatePresence>
+        {showInstallGuide && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            className="fixed inset-0 z-[100] bg-[#0a0b12]/95 backdrop-blur-2xl overflow-y-auto px-6 py-20 flex items-center justify-center font-sans text-white"
+          >
+            <div className="max-w-xl w-full bg-white/[0.03] border border-white/10 rounded-[3rem] p-8 md:p-12 relative shadow-2xl overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl" />
+              <div className="flex justify-between items-center mb-8 relative z-10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                    <Smartphone size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black uppercase tracking-tight">PWA Core Installation</h2>
+                    <p className="text-[10px] font-mono font-bold tracking-widest text-[#059669] uppercase">Add to Home Screen Guide</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowInstallGuide(false)}
+                  className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-8 relative z-10">
+                <p className="text-white/60 text-sm leading-relaxed">
+                  Install Daily Yield onto your device's home screen for seamless, offline-first institutional yield compounding and lightning-fast launch speeds.
+                </p>
+
+                {isIOS ? (
+                  /* iOS / Safari Instructions */
+                  <div className="space-y-6">
+                    <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-3 text-emerald-400">
+                      <Sparkles size={18} className="shrink-0" />
+                      <p className="text-[11px] font-mono font-bold uppercase tracking-wider">iOS Environment Detected</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">1</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Open Safari Share Menu</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Tap the official Safari navigation share button at the bottom of your screen.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">2</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Select "Add to Home Screen"</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Scroll down the default share actions and select <span className="text-emerald-400 font-bold">Add to Home Screen</span> as prompt.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">3</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Confirm Installation Name</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Tap <span className="text-emerald-400 font-bold">Add</span> in the top right. Daily Yield is now native!</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Standard Android / Desktop / Chrome Instructions */
+                  <div className="space-y-6">
+                    <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-center gap-3 text-blue-400">
+                      <Sparkles size={18} className="shrink-0" />
+                      <p className="text-[11px] font-mono font-bold uppercase tracking-wider">Universal Chrome/Android Detected</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">1</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Initiate Native Prompt</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Click the Install action in your browser navigation bar or menu drawer.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">2</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Alternatively: Use Browser Menu</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Tap the three dots (⋮) in the top-right corner of Chrome / Edge, then tap <span className="text-emerald-400 font-bold">Add to Home screen</span> or <span className="text-emerald-400 font-bold">Install app</span>.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4 items-start">
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xs font-mono font-bold">3</div>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider mb-1">Access Anytime</p>
+                          <p className="text-white/40 text-xs leading-relaxed">Launch Daily Yield natively from your screen app list under the standalone environment.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-white/5 flex gap-4">
+                  <button
+                    onClick={() => setShowInstallGuide(false)}
+                    className="flex-1 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-emerald-400 transition-colors cursor-pointer active:scale-95"
+                  >
+                    Close Guide
+                  </button>
+                  {installPrompt && (
+                    <button
+                      onClick={() => {
+                        setShowInstallGuide(false);
+                        handleInstallApp();
+                      }}
+                      className="flex-1 py-4 bg-emerald-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-emerald-400 transition-colors cursor-pointer active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+                    >
+                      <Smartphone size={14} /> Promote Native
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Navigation */}
       <nav className="fixed top-6 left-0 right-0 z-50 p-6 flex justify-between items-center max-w-7xl mx-auto">
         <div className="flex items-center gap-3 glass px-5 py-3 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-2xl">
@@ -694,16 +862,25 @@ const LandingPage = ({ onGetStarted }: { onGetStarted: () => void }) => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={onGetStarted}
-                className="px-10 py-6 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-xl hover:bg-emerald-400 transition-all"
+                className="px-10 py-6 bg-white text-black font-black rounded-[2rem] text-xs uppercase tracking-widest shadow-xl hover:bg-emerald-400 transition-all cursor-pointer"
               >
                 Launch App
               </motion.button>
               <button 
                 onClick={() => setShowDocs(true)}
-                className="px-10 py-6 glass border border-white/10 font-black rounded-[2rem] text-xs uppercase tracking-widest hover:bg-white/5 transition-all flex items-center gap-3 justify-center"
+                className="px-10 py-6 glass border border-white/10 font-black rounded-[2rem] text-xs uppercase tracking-widest hover:bg-white/5 transition-all flex items-center gap-3 justify-center cursor-pointer"
               >
                 Documentation <ArrowUpRight size={16} />
               </button>
+              <motion.button 
+                onClick={handleInstallApp}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-10 py-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-black font-black rounded-[2rem] text-xs uppercase tracking-widest transition-all flex items-center gap-3 justify-center cursor-pointer shadow-lg shadow-emerald-500/10"
+              >
+                <Smartphone size={16} />
+                {installPrompt ? "Install App" : "Add to Device"}
+              </motion.button>
             </div>
             
             <div className="grid grid-cols-3 gap-10 pt-10 border-t border-white/5">
@@ -1180,103 +1357,9 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0e111d] via-[#07080f] to-[#040507] text-white selection:bg-emerald-500/30 overflow-x-hidden relative font-sans">
-      {/* Dynamic High-End Animated Background Layer (No heavyweight or live feeds) */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Modern Cyber Tech Grid Backdrop */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:5rem_5rem]" />
-        
-        {/* Floating Premium Wallet, Money, and Daily Yield elements */}
-        <div className="absolute inset-0 z-0 select-none pointer-events-none">
-          {[
-            { Icon: Wallet, x: "8%", y: "15%", size: 34, delay: 0, duration: 24, label: "💳 wallet" },
-            { Icon: Coins, x: "88%", y: "12%", size: 30, delay: 2, duration: 28, label: "₦ yield" },
-            { Icon: TrendingUp, x: "75%", y: "38%", size: 36, delay: 4, duration: 32, label: "+50% roi" },
-            { Icon: CreditCard, x: "14%", y: "68%", size: 32, delay: 1, duration: 30, label: "💳 fund" },
-            { Icon: Coins, x: "48%", y: "85%", size: 26, delay: 5, duration: 26, label: "₦ growth" },
-            { Icon: Sparkles, x: "32%", y: "10%", size: 22, delay: 3, duration: 21, label: "✨ optimal" },
-            { Icon: Wallet, x: "92%", y: "75%", size: 36, delay: 6, duration: 27, label: "💳 assets" },
-            { Icon: TrendingUp, x: "4%", y: "45%", size: 34, delay: 7, duration: 33, label: "📈 payout" },
-            { Icon: Coins, x: "38%", y: "25%", size: 28, delay: 8, duration: 25, label: "₦ cash" },
-          ].map((item, idx) => {
-            const Icon = item.Icon;
-            return (
-              <motion.div
-                key={idx}
-                style={{ left: item.x, top: item.y }}
-                animate={{
-                  y: [0, -30, 15, 0],
-                  x: [0, 12, -12, 0],
-                  rotate: [0, 8, -8, 0],
-                  scale: [1, 1.05, 0.95, 1],
-                  opacity: [0.15, 0.35, 0.22, 0.15]
-                }}
-                transition={{
-                  duration: item.duration,
-                  delay: item.delay,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="absolute flex items-center gap-1.5 text-emerald-400 select-none pointer-events-none"
-              >
-                <div className="p-2 ml-1.5 rounded-xl bg-white/[0.02] border border-emerald-500/15 backdrop-blur-[1px] shadow-[0_8px_32px_rgba(16,185,129,0.04)]">
-                  <Icon size={item.size} className="text-emerald-400/40 drop-shadow-[0_0_8px_rgba(16,185,129,0.2)]" />
-                </div>
-                <span className="text-[8px] font-mono font-black text-emerald-400/50 tracking-widest uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/10">
-                  {item.label}
-                </span>
-              </motion.div>
-            );
-          })}
-        </div>
-        
-        {/* Slowly Traveling Glowing Nebula Orbs */}
-        <motion.div
-          animate={{
-            x: [0, 40, -20, 0],
-            y: [0, -60, 40, 0],
-            scale: [1, 1.12, 0.94, 1],
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute -top-[15%] -left-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tr from-emerald-500/25 via-emerald-400/12 to-transparent blur-[120px]"
-        />
-        
-        <motion.div
-          animate={{
-            x: [0, -45, 30, 0],
-            y: [0, 40, -50, 0],
-            scale: [1, 0.9, 1.1, 1],
-          }}
-          transition={{
-            duration: 32,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 1.5,
-          }}
-          className="absolute -bottom-[15%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-blue-500/20 via-teal-500/10 to-transparent blur-[125px]"
-        />
-
-        <motion.div
-          animate={{
-            x: [50, -50, 50],
-            y: [-30, 90, -30],
-            scale: [1, 1.15, 1],
-          }}
-          transition={{
-            duration: 38,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute top-[35%] left-[15%] w-[320px] h-[320px] rounded-full bg-emerald-500/[0.08] blur-[100px]"
-        />
-
-        {/* Diagonal Soft Light Scan Line */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/[0.03] to-transparent bg-[length:200%_100%] animate-[marquee_20s_linear_infinite]" />
-      </div>
+    <div className="min-h-screen bg-[#07080d] text-white selection:bg-emerald-500/30 overflow-x-hidden relative font-sans">
+      {/* Dynamic Background Wallet, Money & Sparkles Animation */}
+      <WalletMoneyAnimation />
 
       {/* Top Fixed Market Ticker */}
       <div className="fixed top-0 left-0 right-0 z-[60] bg-black/85 backdrop-blur-md border-b border-white/5 h-10 flex items-center overflow-hidden">
@@ -1347,7 +1430,7 @@ const MinimalistLandingPage = ({ onGetStarted }: { onGetStarted: () => void }) =
       </div>
 
       {/* Hero / Main Section */}
-      <main className="max-w-4xl mx-auto px-6 pt-44 pb-20 space-y-24">
+      <main className="max-w-4xl mx-auto px-6 pt-44 pb-20 space-y-24 relative z-10">
         {/* Intro Tagline */}
         <section className="space-y-6 text-center">
           <span className="text-[9px] font-mono tracking-[0.25em] text-emerald-400 bg-emerald-500/10 px-3.5 py-1.5 rounded uppercase">
