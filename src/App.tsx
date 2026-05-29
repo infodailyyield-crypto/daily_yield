@@ -2275,7 +2275,7 @@ const Sidebar = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div key="sidebar-container" className="fixed inset-0 z-50 overflow-hidden">
+        <div key="sidebar-container" className="fixed inset-0 z-[150] overflow-hidden">
           {/* Overlay */}
           <motion.div 
             key="sidebar-overlay"
@@ -7719,7 +7719,7 @@ function ReferralPage({ profile, onNavigate }: { profile: UserProfile | null, on
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#0a0b12]/90 backdrop-blur-xl" />
       <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} className="relative glass-dark p-10 rounded-[3rem] w-full max-w-lg border border-white/5 shadow-2xl">
          <div className="flex justify-between items-center mb-8">
