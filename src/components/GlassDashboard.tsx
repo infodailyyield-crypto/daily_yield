@@ -147,52 +147,16 @@ export function GlassDashboard({
   return (
     <motion.div
       key="glass_dashboard"
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -30 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       className="space-y-8 pb-32 relative select-none"
     >
-      {/* Liquid Floating Glass Orbs of varying sizes and opacity behind elements */}
+      {/* High-performance static ambient glow backgrounds to eliminate repaint lag */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-        <motion.div 
-          animate={{
-            x: [0, 80, -40, 0],
-            y: [0, -60, 50, 0],
-            scale: [1, 1.15, 0.9, 1]
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute top-[10%] left-[20%] w-96 h-96 bg-emerald-500/5 rounded-full blur-[120px]"
-        />
-        <motion.div 
-          animate={{
-            x: [0, -90, 60, 0],
-            y: [0, 80, -70, 0],
-            scale: [1, 0.85, 1.1, 1]
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute top-[40%] right-[15%] w-[450px] h-[450px] bg-teal-500/4 rounded-full blur-[140px]"
-        />
-        <motion.div 
-          animate={{
-            x: [0, 40, -50, 0],
-            y: [0, 90, 40, 0],
-            scale: [0.95, 1.1, 0.95, 0.95]
-          }}
-          transition={{
-            duration: 22,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute bottom-[20%] left-[10%] w-[350px] h-[350px] bg-emerald-600/3 rounded-full blur-[110px]"
-        />
+        <div className="absolute top-[10%] left-[20%] w-96 h-96 bg-emerald-500/[0.03] rounded-full blur-[100px]" />
+        <div className="absolute top-[40%] right-[15%] w-[450px] h-[450px] bg-teal-500/[0.02] rounded-full blur-[120px]" />
+        <div className="absolute bottom-[20%] left-[10%] w-[350px] h-[350px] bg-emerald-600/[0.02] rounded-full blur-[100px]" />
       </div>
 
       {/* Modern Greeting & Systems Status Row */}
