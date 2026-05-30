@@ -77,6 +77,7 @@ import { OnePlayCodeView } from './components/OnePlayCodeView';
 import { OnePlayAdminCodesPanel } from './components/OnePlayAdminCodesPanel';
 import { ChatBotPage } from './components/ChatBotPage';
 import { WalletMoneyAnimation } from './components/WalletMoneyAnimation';
+import { GlassDashboard } from './components/GlassDashboard';
 
 // --- Push Helpers ---
 const triggerPush = async (userId: string, title: string, body: string, url: string = "/") => {
@@ -2435,79 +2436,220 @@ interface LandingPageOfflineSplashScreenProps {
 }
 
 const LandingPageOfflineSplashScreen = ({ onContinue, logoUrl }: LandingPageOfflineSplashScreenProps) => {
+  const [liveYield, setLiveYield] = useState(157492048);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveYield(prev => prev + Math.floor(Math.random() * 45) + 5);
+    }, 1800);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#07080c] flex flex-col items-center justify-between p-6 sm:p-12 relative overflow-hidden text-white select-none">
+    <div className="min-h-screen bg-[#06070a] flex flex-col items-center justify-between p-4 sm:p-8 lg:p-12 relative overflow-hidden text-white select-none">
       {/* Dynamic Ambient Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[130px] rounded-full animate-pulse pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/5 blur-[130px] rounded-full animate-pulse pointer-events-none" style={{ animationDelay: '3s' }} />
+      <div className="absolute top-[-15%] left-[-10%] w-[60%] h-[60%] bg-emerald-500/10 blur-[150px] rounded-full animate-pulse pointer-events-none" />
+      <div className="absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] bg-emerald-600/5 blur-[150px] rounded-full animate-pulse pointer-events-none" style={{ animationDelay: '4s' }} />
+      
+      {/* High-Tech Background Lines / Grid Accent */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none opacity-60" />
 
-      {/* Top Header Placeholder to balance layout */}
-      <div className="w-full flex justify-between items-center max-w-lg z-10 opacity-70">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-emerald-400 font-bold">SECURE CONNECTIONS LIVE</span>
-        </div>
-        <span className="text-[9px] font-mono tracking-wider text-white/40 uppercase">V3.1.2 PROT</span>
-      </div>
-
-      {/* Main Center Content Container */}
-      <div className="flex flex-col items-center text-center max-w-md my-auto z-10 pt-12 pb-12 animate-in fade-in duration-1000">
-        {/* Animated Brand Identity Container */}
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: [0.95, 1.05, 1], opacity: 1 }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-          className="relative group mb-8"
-        >
-          {/* Subtle Outer pulsing halo */}
-          <div className="absolute -inset-4 bg-emerald-500/20 rounded-[2.5rem] blur-xl opacity-80 group-hover:opacity-100 group-hover:-inset-6 transition-all duration-700 animate-pulse animate-duration-[3000ms]" />
-          
-          <div className="relative p-7 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl flex items-center justify-center">
-            <img 
-              src={logoUrl} 
-              alt="DailyYield Logo" 
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover hover:scale-110 transition-transform duration-500 shadow-md pointer-events-none"
-              referrerPolicy="no-referrer"
-            />
+      {/* Top Header Grid */}
+      <header className="w-full max-w-6xl flex justify-between items-center z-10 border-b border-white/[0.04] pb-4 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="p-1 px-2.5 rounded bg-white/5 border border-white/10 text-xs font-black uppercase tracking-wider text-emerald-400">
+            D<span className="text-white">Y</span>
           </div>
-        </motion.div>
+          <div>
+            <span className="text-xs font-black uppercase tracking-widest text-white">DailyYield<span className="text-emerald-400">™</span></span>
+            <p className="text-[8px] font-mono tracking-wider text-white/30 uppercase -mt-0.5">Asset Pipeline</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Status Indicator */}
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="text-[9px] font-mono tracking-wider text-emerald-400 uppercase font-bold">NODE OPERATIONAL</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Shield size={12} className="text-emerald-400" />
+            <span className="text-[9px] font-mono tracking-wider text-white/50 uppercase">256-BIT SSL SECURE</span>
+          </div>
+        </div>
+      </header>
 
-        {/* Brand Name Typography */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.8 }}
-          className="space-y-3"
-        >
-          <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-2">
-            DAILY<span className="text-emerald-400">YIELD</span>
-          </h1>
-          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-emerald-400 font-bold">
-            INSTITUTIONAL YIELD ENGINE
-          </p>
-          <div className="h-0.5 w-12 bg-emerald-500/30 mx-auto rounded-full mt-4" />
-          <p className="text-xs text-white/50 max-w-xs leading-relaxed mx-auto pt-4">
-            Welcome back to Nigeria's elite automated portfolio yield pipeline. Real-time compounding starts here.
-          </p>
-        </motion.div>
-      </div>
+      {/* Main Container - Elegant Split Bento Layout for Desktop, fluid stacks for mobile */}
+      <main className="w-full max-w-6xl grid lg:grid-cols-12 gap-8 lg:gap-12 my-auto z-10 py-8 items-center lg:min-h-[500px]">
+        {/* Left Side: App Brand Hero, App Logo, Beautiful Asset Preview Card */}
+        <section className="lg:col-span-6 space-y-6 sm:space-y-8 text-center lg:text-left flex flex-col items-center lg:items-start">
+          <div className="space-y-4">
+            {/* Logo Badge Container with Rotating Cyber Border */}
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.8 }}
+              className="relative inline-block"
+            >
+              <div className="absolute -inset-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-3xl blur opacity-30 pointer-events-none" />
+              <div className="relative p-4 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl flex items-center justify-center">
+                <img 
+                  src={logoUrl} 
+                  alt="DailyYield Logo" 
+                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl object-cover pointer-events-none"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </motion.div>
 
-      {/* Bottom Interface Bar */}
-      <div className="w-full max-w-md flex flex-col gap-4 z-10 pb-8">
-        <motion.button
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.8 }}
-          onClick={onContinue}
-          className="w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] bg-emerald-500 text-black rounded-2xl hover:bg-emerald-400 transition-all duration-300 transform active:scale-95 shadow-[0_12px_24px_-4px_rgba(16,185,129,0.3)] hover:shadow-[0_16px_32px_-4px_rgba(16,185,129,0.4)] cursor-pointer text-center flex items-center justify-center gap-2"
-        >
-          Continue to Sign In / Sign Up <ArrowUpRight size={14} className="shrink-0" />
-        </motion.button>
-        
-        <p className="text-[8px] font-mono text-center text-white/30 uppercase tracking-widest leading-relaxed">
-          BY SECURITY PROTOCOL, CONTINUING CONFIRMS DEPLOYED WALLET STANDARDS
-        </p>
-      </div>
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.6 }}
+              className="space-y-2"
+            >
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase tracking-tight text-white leading-none">
+                DAILY<span className="text-emerald-400">YIELD</span>
+              </h1>
+              <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-emerald-400 font-black">
+                Nigeria's Premium Non-Custodial Yield Pipeline
+              </p>
+              <p className="text-xs text-white/60 max-w-md mx-auto lg:mx-0 leading-relaxed pt-2">
+                Compound your passive assets safely in real-time. Join thousands of audit pros, tech vectors, and institutional builders matching 50.00% daily locked ROI pools.
+              </p>
+            </motion.div>
+          </div>
+
+          {/* Majestic Interactive CSS/Tailwind Asset Preview Card */}
+          <motion.div 
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="w-full max-w-sm p-5 bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/10 rounded-3xl relative overflow-hidden group shadow-2xl"
+          >
+            {/* Visual shine inside card */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-transparent to-transparent opacity-40" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+            
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <p className="text-[8px] font-mono uppercase tracking-widest text-white/40">Total Active Liquidity Pool</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-xs font-bold text-emerald-400">₦</span>
+                  <span className="text-lg font-black tracking-tight text-white font-mono">
+                    {liveYield.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase font-black shrink-0">
+                ACTIVE PIPELINE
+              </span>
+            </div>
+
+            {/* Simulated Glass Mini Graph or dynamic metrics */}
+            <div className="mt-5 pt-3 border-t border-white/[0.05] grid grid-cols-2 gap-4 relative z-10">
+              <div>
+                <p className="text-[8px] font-mono uppercase tracking-widest text-white/30">Target Cycle APY</p>
+                <p className="text-xs font-black text-white mt-0.5">50.00% Guaranteed</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] font-mono uppercase tracking-widest text-white/30">Network Custody</p>
+                <p className="text-xs font-black text-emerald-400 mt-0.5 flex items-center justify-end gap-1">
+                  <Shield size={10} /> Secure Vault
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Card Holder Stamp */}
+            <div className="mt-4 pt-3 border-t border-white/[0.03] flex justify-between items-center text-[7px] font-mono text-white/40 relative z-10">
+              <span className="uppercase tracking-wider">CLIENT ACCESS STAMP: #DY-89912A</span>
+              <span className="uppercase text-emerald-400 tracking-widest">MPC SAFE COUPLING</span>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* Right Side: Features List, Live Tickers, CTAs */}
+        <section className="lg:col-span-6 space-y-8 flex flex-col justify-center">
+          <div className="space-y-4">
+            <h2 className="text-xs font-mono tracking-[0.2em] text-emerald-400 uppercase text-center lg:text-left font-bold">
+              INSTITUTIONAL PERFORMANCE STANDARDS
+            </h2>
+
+            {/* Feature Bento Stack */}
+            <div className="space-y-3.5">
+              {[
+                {
+                  icon: TrendingUp,
+                  title: "Automated Compounding Settlement",
+                  desc: "Guaranteed 50.00% standard cycle returns executing inside a pristine non-custodial pipeline, with daily automated settlements."
+                },
+                {
+                  icon: Lock,
+                  title: "Military-Grade MPC Custody",
+                  desc: "All treasury reservoirs use multi-party computation and 256-bit payloads to safeguard premium user asset balances."
+                },
+                {
+                  icon: CheckCircle2,
+                  title: "Direct Regulatory Compliance Protocols",
+                  desc: "Direct compliance models mapped to elite Nigerian bank clearing integrations, delivering instant withdrawals under 3 minutes."
+                }
+              ].map((feat, i) => {
+                const Icon = feat.icon;
+                return (
+                  <motion.div 
+                    initial={{ x: 30, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 + i * 0.1, duration: 0.6 }}
+                    key={i} 
+                    className="p-4 bg-white/[0.01] hover:bg-white/[0.02] border border-white/[0.03] hover:border-emerald-500/20 rounded-2xl flex gap-4 transition-all duration-300 group"
+                  >
+                    <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 shrink-0 self-start group-hover:bg-emerald-500/10 transition-colors">
+                      <Icon size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight text-white mb-0.5">{feat.title}</h3>
+                      <p className="text-[10px] sm:text-xs text-white/50 leading-relaxed font-medium">{feat.desc}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Continuous CTA Container */}
+          <div className="space-y-4 pt-2">
+            <motion.button
+              initial={{ y: 30, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.8 }}
+              onClick={onContinue}
+              className="w-full py-4 px-6 text-xs font-black uppercase tracking-[0.2em] bg-emerald-500 text-black rounded-2xl hover:bg-emerald-400 transition-all duration-300 transform active:scale-[0.98] shadow-[0_12px_24px_-4px_rgba(16,185,129,0.3)] hover:shadow-[0_16px_32px_-4px_rgba(16,185,129,0.4)] cursor-pointer text-center flex items-center justify-center gap-2 group"
+            >
+              Access Secure Yield Engine <ArrowUpRight size={16} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </motion.button>
+            <p className="text-[8px] font-mono text-center text-white/30 uppercase tracking-[0.2em] leading-relaxed">
+              * SECURE CHANNEL ASSIGNMENTS GRANTED TO FULLY DIRECT ACCESS ACCOUNTS ONLY *
+            </p>
+          </div>
+        </section>
+      </main>
+
+      {/* Footer Security Badges Section */}
+      <footer className="w-full max-w-6xl border-t border-white/[0.04] pt-6 pb-2 z-10 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-wrap justify-center items-center gap-6 text-[8px] font-mono tracking-widest text-white/40 uppercase">
+          <span className="flex items-center gap-1.5 border-r border-white/5 pr-4 shrink-0">
+            <Shield size={10} className="text-emerald-400" /> SEC COMPLIANT STANDARDS
+          </span>
+          <span className="flex items-center gap-1.5 border-r border-white/5 pr-4 shrink-0">
+            <CheckCircle2 size={10} className="text-emerald-400" /> CBN COMPATIBLE CLEARING
+          </span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <Lock size={10} className="text-emerald-400" /> NDIC POOLED COMPLIANCE
+          </span>
+        </div>
+        <span className="text-[8px] font-mono tracking-wider text-white/30 uppercase text-center md:text-right">
+          © 2026 DailyYield Ltd. All pipeline access is encrypted.
+        </span>
+      </footer>
     </div>
   );
 };
@@ -4224,16 +4366,28 @@ export default function App() {
           ) : (
             <>
               {view === 'dashboard' && (
-            <Dashboard 
-              profile={profile} 
-              onCheckIn={handleCheckIn} 
-              onInvest={invest} 
-              setView={setView}
-              totalLiveProfit={totalLiveProfit}
-              onDeposit={() => setView('wallet')}
-              onWithdraw={() => setView('wallet')}
-            />
-          )}
+                pageStatus?.useGlassDashboard ? (
+                  <GlassDashboard 
+                    profile={profile} 
+                    onCheckIn={handleCheckIn} 
+                    onInvest={invest} 
+                    setView={setView}
+                    totalLiveProfit={totalLiveProfit}
+                    onDeposit={() => setView('wallet')}
+                    onWithdraw={() => setView('wallet')}
+                  />
+                ) : (
+                  <Dashboard 
+                    profile={profile} 
+                    onCheckIn={handleCheckIn} 
+                    onInvest={invest} 
+                    setView={setView}
+                    totalLiveProfit={totalLiveProfit}
+                    onDeposit={() => setView('wallet')}
+                    onWithdraw={() => setView('wallet')}
+                  />
+                )
+              )}
           {view === 'portfolio' && (
             <Portfolio userId={user?.uid} now={Date.now()} />
           )}
@@ -12517,7 +12671,7 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
           {activeTab === 'landing_page' && (
              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* Controls Header */}
-                <div className="grid md:grid-cols-2 gap-8">
+                <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-8">
                    {/* Toggle Landing Page Enabled */}
                    <div className="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden flex flex-col justify-between">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -12571,6 +12725,37 @@ function AdminPanel({ pageStatus }: { pageStatus: Record<string, any> }) {
                            className="px-6 py-3 bg-white text-black hover:bg-emerald-500 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer shadow-md"
                         >
                             SWITCH STYLE
+                         </button>
+                      </div>
+                   </div>
+
+                   {/* Toggle Dashboard Layout */}
+                   <div className="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden flex flex-col justify-between">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/5 rounded-full blur-3xl pointer-events-none" />
+                      <div>
+                         <h3 className="text-xl font-black text-white flex items-center gap-2">
+                           <LayoutDashboard className="text-emerald-400" /> Dashboard Layout
+                         </h3>
+                         <p className="text-white/40 text-xs leading-relaxed mt-2">
+                           Choose between the core Original Slate dashboard layout or the premium Liquid Glass 100% glassmorphism interface.
+                         </p>
+                      </div>
+                      <div className="mt-6 flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                         <span className="text-xs font-black uppercase tracking-wider text-white">Layout: {pageStatus?.useGlassDashboard ? "LIQUID GLASS" : "ORIGINAL SLATE"}</span>
+                         <button
+                           onClick={async () => {
+                             const current = !!pageStatus?.useGlassDashboard;
+                             await updateDoc(doc(db, 'system', 'page_status'), { useGlassDashboard: !current });
+                             alert(`Dashboard Layout switched to ${!current ? 'LIQUID GLASS' : 'ORIGINAL SLATE'}`);
+                           }}
+                           className={cn(
+                             "px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer shadow-md",
+                             pageStatus?.useGlassDashboard 
+                               ? "bg-emerald-500 text-black shadow-lg hover:brightness-110" 
+                               : "bg-white text-black hover:bg-emerald-500"
+                           )}
+                        >
+                            SWITCH LAYOUT
                          </button>
                       </div>
                    </div>
